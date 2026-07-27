@@ -35,6 +35,10 @@
 
 ## 향후 과제 (future)
 
+> 아래 항목 중 cage 생성 알고리즘 자체의 개선은 유니티 밖 샌드박스에서 반복 실험으로 진행했다 —
+> [cage-lab.md](cage-lab.md). 단일 워터타이트 사각 파이프, 가랑이/뒤꿈치 포함, 다중 포즈 containment
+> 학습까지 도달했고 유니티 역이식은 아직 하지 않았다.
+
 - **접합부 박스 겹침 해소 / self-collision 제거**: 현재 팔·다리·머리 뿌리가 몸통에 박스로 겹침. 워터타이트 단일 케이지로 용접 필요. (self-collision이 없어야 한다는 것과 같은 문제.)
 - **포함 갭 보완**: Hips 아래(골반·사타구니)와 팔꿈치·무릎 굽힘부 바깥 wedge의 미포함 정점. margin·링 밀도·골반 전용 처리로 개선.
 - **mesh deformation**: cage 기반 정점 사상(별도 조사 [cage-deformation-plan.md](cage-deformation-plan.md)). 이것이 들어오면 메시가 cage를 따라가 `check containment`의 outside가 수렴한다.

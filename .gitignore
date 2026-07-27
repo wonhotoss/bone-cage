@@ -9,3 +9,10 @@
 ehthumbs.db
 [Tt]humbs.db
 [Dd]esktop.ini
+
+# ---------------------------------------------------------------------
+# cage sandbox: generated results (renders, OBJ dumps, sweep tables)
+# ---------------------------------------------------------------------
+sandbox/out/
+__pycache__/
+*.pyc
