@@ -1,0 +1,254 @@
+<!-- Viewer template for view.py, which substitutes the baked views for the token below and
+     writes out a self-contained page (no network, no libraries). Canvas 2D is enough -- a cage
+     is a few hundred edges and the body is a subsampled point cloud. -->
+<meta charset="utf-8">
+<title>cage viewer</title>
+<style>
+  :root {
+    --bg: #101216; --panel: #181b21; --line: #2a2f38; --fg: #d6dae2; --dim: #8b93a1;
+    --cage: #3cdcff; --escape: #ff4646; --xsect: #ff9a3c; --joint: #ffd250;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; height: 100vh; display: flex; background: var(--bg); color: var(--fg);
+         font: 13px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace; overflow: hidden; }
+  #side { width: 268px; flex: none; padding: 14px; background: var(--panel);
+          border-right: 1px solid var(--line); overflow-y: auto; }
+  #stage { flex: 1; position: relative; min-width: 0; }
+  canvas { display: block; width: 100%; height: 100%; cursor: grab; }
+  canvas.drag { cursor: grabbing; }
+  h1 { margin: 0 0 12px; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
+  .grp { margin-bottom: 16px; }
+  .grp > label { display: block; margin-bottom: 4px; color: var(--dim); font-size: 11px;
+                 letter-spacing: .06em; text-transform: uppercase; }
+  select { width: 100%; padding: 5px 6px; background: #0c0e12; color: var(--fg);
+           border: 1px solid var(--line); border-radius: 3px; font: inherit; }
+  .chk { display: flex; align-items: center; gap: 7px; padding: 2px 0; cursor: pointer; }
+  .chk input { accent-color: var(--cage); }
+  .swatch { width: 9px; height: 9px; border-radius: 2px; flex: none; }
+  .btns { display: flex; gap: 6px; flex-wrap: wrap; }
+  button { flex: 1; min-width: 52px; padding: 5px 0; background: #0c0e12; color: var(--fg);
+           border: 1px solid var(--line); border-radius: 3px; font: inherit; cursor: pointer; }
+  button:hover { border-color: var(--cage); color: var(--cage); }
+  #stat { padding: 8px 10px; background: #0c0e12; border: 1px solid var(--line);
+          border-radius: 3px; color: var(--fg); font-size: 12px; }
+  #stat div { display: grid; grid-template-columns: 66px 1fr; gap: 6px; padding: 1px 0; }
+  #stat span { color: var(--dim); }
+  #stat i { font-style: normal; }
+  #stat b { font-weight: 600; }
+  #hint { position: absolute; left: 12px; bottom: 10px; color: var(--dim); font-size: 11px; }
+  #label { position: absolute; left: 12px; top: 10px; font-size: 12px; }
+  #label span { color: var(--dim); }
+</style>
+
+<div id="side">
+  <h1>cage viewer</h1>
+  <div class="grp"><label>algorithm</label><select id="algo"></select></div>
+  <div class="grp"><label>deformation</label><select id="case"></select></div>
+  <div class="grp">
+    <label>layers</label>
+    <label class="chk"><input type="checkbox" id="l_body" checked><span class="swatch" style="background:#565c68"></span>body points</label>
+    <label class="chk"><input type="checkbox" id="l_wire" checked><span class="swatch" style="background:var(--cage)"></span>cage wireframe</label>
+    <label class="chk"><input type="checkbox" id="l_shade"><span class="swatch" style="background:#2e6d80"></span>cage shaded</label>
+    <label class="chk"><input type="checkbox" id="l_escape" checked><span class="swatch" style="background:var(--escape)"></span>escaped verts</label>
+    <label class="chk"><input type="checkbox" id="l_xsect" checked><span class="swatch" style="background:var(--xsect)"></span>self-intersections</label>
+    <label class="chk"><input type="checkbox" id="l_joint"><span class="swatch" style="background:var(--joint)"></span>joints</label>
+  </div>
+  <div class="grp">
+    <label>view</label>
+    <div class="btns">
+      <button data-view="front">front</button>
+      <button data-view="side">side</button>
+      <button data-view="top">top</button>
+      <button data-view="iso">iso</button>
+    </div>
+  </div>
+  <div class="grp"><label>metrics</label><div id="stat"></div></div>
+</div>
+
+<div id="stage">
+  <canvas id="cv"></canvas>
+  <div id="label"></div>
+  <div id="hint">drag orbit &middot; wheel zoom &middot; shift-drag pan &middot; &larr;/&rarr; case &middot; &uarr;/&darr; algo</div>
+</div>
+
+<script>
+const DATA = __PAYLOAD__;
+
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const sel_algo = document.getElementById('algo');
+const sel_case = document.getElementById('case');
+const layers = ['body', 'wire', 'shade', 'escape', 'xsect', 'joint']
+  .map(k => [k, document.getElementById('l_' + k)]);
+
+const algo_names = [...new Set(DATA.views.map(v => v.algo))];
+const case_names = [...new Set(DATA.views.map(v => v.case))];
+for (const n of algo_names) { sel_algo.add(new Option(n, n)); }
+for (const n of case_names) { sel_case.add(new Option(n, n)); }
+
+// Scale comes from the union of every view, so switching variants does not resize the body.
+const span = Math.max(...[0, 1, 2].map(k => DATA.bbox[1][k] - DATA.bbox[0][k]));
+const center = [0, 1, 2].map(k => (DATA.bbox[0][k] + DATA.bbox[1][k]) / 2);
+
+const VIEWS = { front: [0, 0], side: [Math.PI / 2, 0], top: [0, -Math.PI / 2], iso: [0.6, -0.35] };
+let yaw = VIEWS.front[0], pitch = VIEWS.front[1], zoom = 1, pan = [0, 0];
+
+function view_of() {
+  return DATA.views.find(v => v.algo === sel_algo.value && v.case === sel_case.value);
+}
+
+function rot(x, y, z) {
+  // yaw about Y, then pitch about the rotated X. The camera looks down -z, so a larger z is nearer.
+  const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
+  const rx = x * cy + z * sy;
+  const rz = z * cy - x * sy;
+  return [rx, y * cp - rz * sp, y * sp + rz * cp];
+}
+
+let w = 0, h = 0, unit = 1;
+
+function fit() {
+  const r = window.devicePixelRatio || 1;
+  w = cv.clientWidth; h = cv.clientHeight;
+  cv.width = Math.round(w * r); cv.height = Math.round(h * r);
+  ctx.setTransform(r, 0, 0, r, 0, 0);
+  unit = (Math.min(w, h) - 40) / span;
+}
+
+function project(flat, i) {
+  const p = rot(flat[i] - center[0], flat[i + 1] - center[1], flat[i + 2] - center[2]);
+  return [w / 2 + pan[0] + p[0] * unit * zoom, h / 2 + pan[1] - p[1] * unit * zoom, p[2]];
+}
+
+function dots(flat, color, size) {
+  ctx.fillStyle = color;
+  const d = size, o = size / 2;
+  for (let i = 0; i < flat.length; i += 3) {
+    const q = project(flat, i);
+    ctx.fillRect(q[0] - o, q[1] - o, d, d);
+  }
+}
+
+function draw() {
+  const v = view_of();
+  const on = Object.fromEntries(layers.map(([k, el]) => [k, el.checked]));
+
+  ctx.fillStyle = '#101216';
+  ctx.fillRect(0, 0, w, h);
+
+  if (on.body) { dots(v.body, '#565c68', 1.6); }
+
+  if (on.shade) {
+    // Painter's algorithm over front faces only; a z-buffer is overkill for ~550 triangles.
+    const faces = [];
+    for (let i = 0; i < v.cage.t.length; i += 3) {
+      const a = project(v.cage.v, v.cage.t[i] * 3);
+      const b = project(v.cage.v, v.cage.t[i + 1] * 3);
+      const c = project(v.cage.v, v.cage.t[i + 2] * 3);
+      // Screen-space winding gives the facing test for free: y is flipped, so front faces wind cw.
+      const area = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+      if (area < 0) { faces.push([(a[2] + b[2] + c[2]) / 3, a, b, c, -area]); }
+    }
+    faces.sort((p, q) => p[0] - q[0]);
+    for (const [, a, b, c, area] of faces) {
+      // Steeper faces read darker: area over the triangle's own extent stands in for n dot view.
+      const ext = Math.max(1e-6, (Math.abs(b[0] - a[0]) + Math.abs(c[0] - a[0])) *
+                                 (Math.abs(b[1] - a[1]) + Math.abs(c[1] - a[1])));
+      const lit = 0.25 + 0.55 * Math.min(1, area / ext);
+      ctx.fillStyle = `rgb(${Math.round(26 + 60 * lit)},${Math.round(70 + 110 * lit)},${Math.round(90 + 140 * lit)})`;
+      ctx.beginPath();
+      ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.lineTo(c[0], c[1]);
+      ctx.closePath(); ctx.fill();
+    }
+  }
+
+  if (on.wire) {
+    // Quad diagonals go in dim so the rings and ports carry the shape.
+    ctx.lineWidth = 1;
+    for (const [list, color] of [[v.cage.d, 'rgba(60,220,255,0.16)'], [v.cage.e, '#3cdcff']]) {
+      ctx.strokeStyle = color;
+      ctx.beginPath();
+      for (let i = 0; i < list.length; i += 2) {
+        const a = project(v.cage.v, list[i] * 3);
+        const b = project(v.cage.v, list[i + 1] * 3);
+        ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]);
+      }
+      ctx.stroke();
+    }
+  }
+
+  if (on.xsect) {
+    // Each intersecting triangle carries its own three corners, so it needs no cage indexing.
+    ctx.fillStyle = 'rgba(255,154,60,0.55)';
+    ctx.strokeStyle = '#ff9a3c';
+    for (let i = 0; i < v.xsect.length; i += 9) {
+      ctx.beginPath();
+      for (let k = 0; k < 3; k++) {
+        const q = project(v.xsect, i + k * 3);
+        if (k) { ctx.lineTo(q[0], q[1]); } else { ctx.moveTo(q[0], q[1]); }
+      }
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+    }
+  }
+
+  if (on.escape) { dots(v.escape, '#ff4646', 4); }
+  if (on.joint) { dots(v.joints, '#ffd250', 3.4); }
+
+  document.getElementById('label').innerHTML =
+    `${v.algo} <span>/</span> ${v.case} <span>/ score</span> ${v.score.toFixed(3)}`;
+  document.getElementById('stat').innerHTML = v.stat;
+}
+
+function set_view(name) {
+  [yaw, pitch] = VIEWS[name];
+  zoom = 1; pan = [0, 0];
+  draw();
+}
+
+let drag = null;
+cv.addEventListener('pointerdown', e => {
+  drag = { x: e.clientX, y: e.clientY, pan: e.shiftKey };
+  cv.classList.add('drag');
+  cv.setPointerCapture(e.pointerId);
+});
+cv.addEventListener('pointermove', e => {
+  if (drag) {
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    drag.x = e.clientX; drag.y = e.clientY;
+    if (drag.pan) {
+      pan = [pan[0] + dx, pan[1] + dy];
+    } else {
+      yaw += dx * 0.008;
+      pitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, pitch - dy * 0.008));
+    }
+    draw();
+  }
+});
+cv.addEventListener('pointerup', e => { drag = null; cv.classList.remove('drag'); });
+cv.addEventListener('wheel', e => {
+  e.preventDefault();
+  zoom = Math.max(0.2, Math.min(14, zoom * Math.exp(-e.deltaY * 0.0015)));
+  draw();
+}, { passive: false });
+
+for (const [, el] of layers) { el.addEventListener('change', draw); }
+sel_algo.addEventListener('change', draw);
+sel_case.addEventListener('change', draw);
+for (const b of document.querySelectorAll('[data-view]')) {
+  b.addEventListener('click', () => set_view(b.dataset.view));
+}
+
+function step(sel, d) {
+  sel.selectedIndex = (sel.selectedIndex + d + sel.length) % sel.length;
+  draw();
+}
+window.addEventListener('keydown', e => {
+  const move = { ArrowLeft: [sel_case, -1], ArrowRight: [sel_case, 1],
+                 ArrowUp: [sel_algo, -1], ArrowDown: [sel_algo, 1] }[e.key];
+  if (move) { e.preventDefault(); step(move[0], move[1]); }
+});
+window.addEventListener('resize', () => { fit(); draw(); });
+
+fit();
+set_view('front');
+</script>

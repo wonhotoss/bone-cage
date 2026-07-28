@@ -18,6 +18,7 @@ Requires Python 3.13 with numpy, scipy and pillow (`py -3.13`).
 | `cagelab/viz.py` | orthographic PNG previews (body point cloud + cage wireframe + escapes) |
 | `cagelab/algos/` | the candidate algorithms |
 | `run_eval.py` | score one or more algorithms over the deformation set |
+| `view.py` + `viewer.html` | bake variants into one orbitable HTML page -> `out/view.html` |
 | `sweep.py` | parameter study -> `out/sweep.md` |
 | `probe.py` | inspect one bone's stretch profile, or where escaped vertices sit |
 
@@ -25,12 +26,23 @@ Requires Python 3.13 with numpy, scipy and pillow (`py -3.13`).
 
 ```
 py -3.13 run_eval.py v2_pipe -v --render     # score + out/v2_pipe/*.png + *.obj
+py -3.13 view.py                             # out/view.html, every algo side by side
 py -3.13 probe.py v2_pipe escapes            # which bones own the escaped vertices
 py -3.13 probe.py v2_pipe profile LeftLeg    # why a bone's stretch band is wrong
 py -3.13 sweep.py                            # parameter table
 ```
 
 `run_eval.py v2_pipe:margin=1.1,torso_subdiv=3` builds a parameter variant without editing code.
+`view.py` takes the same names, so `view.py v2_pipe v2_pipe:repair_iters=0` puts the repaired and
+structure-only cages in one page's dropdown. `--cases all` covers the whole deformation set.
+
+## looking at a cage
+
+`out/view.html` is one self-contained file -- open it in a browser, no server and no packages.
+Drag orbits, the wheel zooms, shift-drag pans, and the arrow keys step through cases and
+algorithms so a defect can be watched appearing as the bones change length. Escaped vertices are
+red, self-intersecting triangles orange; quad diagonals are drawn dim so the ring and port
+structure stays readable. Static PNG contact sheets still come from `run_eval.py --render`.
 
 ## algorithm contract
 
