@@ -9,14 +9,18 @@
     --cage: #3cdcff; --escape: #ff4646; --xsect: #ff9a3c; --joint: #ffd250;
   }
   * { box-sizing: border-box; }
-  body { margin: 0; height: 100vh; display: flex; background: var(--bg); color: var(--fg);
+  body { margin: 0; background: var(--bg); color: var(--fg);
          font: 13px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace; overflow: hidden; }
+  /* The layout lives on #app rather than body, so the page survives being nested in a wrapper. */
+  #app { display: flex; height: 100dvh; }
   #side { width: 268px; flex: none; padding: 14px; background: var(--panel);
           border-right: 1px solid var(--line); overflow-y: auto; }
   #stage { flex: 1; position: relative; min-width: 0; }
-  canvas { display: block; width: 100%; height: 100%; cursor: grab; }
+  canvas { display: block; width: 100%; height: 100%; cursor: grab; touch-action: none; }
   canvas.drag { cursor: grabbing; }
-  h1 { margin: 0 0 12px; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
+  h1 { margin: 0; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
+  #intro { margin: 6px 0 16px; color: var(--dim); font-size: 11px; line-height: 1.6; }
+  :focus-visible { outline: 2px solid var(--cage); outline-offset: 2px; }
   .grp { margin-bottom: 16px; }
   .grp > label { display: block; margin-bottom: 4px; color: var(--dim); font-size: 11px;
                  letter-spacing: .06em; text-transform: uppercase; }
@@ -38,10 +42,22 @@
   #hint { position: absolute; left: 12px; bottom: 10px; color: var(--dim); font-size: 11px; }
   #label { position: absolute; left: 12px; top: 10px; font-size: 12px; }
   #label span { color: var(--dim); }
+
+  /* Narrow screens: the panel becomes a header strip and the canvas keeps the larger half. */
+  @media (max-width: 760px) {
+    #app { flex-direction: column; }
+    #side { width: 100%; max-height: 42vh; border-right: 0; border-bottom: 1px solid var(--line); }
+    #stage { flex: 1; min-height: 58vh; }
+    .grp { margin-bottom: 12px; }
+    #hint { display: none; }
+  }
 </style>
 
+<div id="app">
 <div id="side">
   <h1>cage viewer</h1>
+  <p id="intro">A cage is generated from bone lengths alone. Each view holds one algorithm under one
+     set of bone lengths: the body it must contain, the cage it produced, and where that failed.</p>
   <div class="grp"><label>algorithm</label><select id="algo"></select></div>
   <div class="grp"><label>deformation</label><select id="case"></select></div>
   <div class="grp">
@@ -69,6 +85,7 @@
   <canvas id="cv"></canvas>
   <div id="label"></div>
   <div id="hint">drag orbit &middot; wheel zoom &middot; shift-drag pan &middot; &larr;/&rarr; case &middot; &uarr;/&darr; algo</div>
+</div>
 </div>
 
 <script>
