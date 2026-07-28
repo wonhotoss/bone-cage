@@ -17,7 +17,7 @@ import numpy as np
 
 import fbx
 
-FBX = Path(r'd:/projects/frame-based-space-mapping/unity/Assets/models/ViconActorFingers_orient_finger_fixed.fbx')
+FBX = Path(__file__).resolve().parent.parent / 'unity/Assets/models/ViconActorFingers_orient_finger_fixed.fbx'
 OUT = Path(__file__).parent / 'data'
 
 
