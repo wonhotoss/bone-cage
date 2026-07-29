@@ -80,6 +80,9 @@ rest cage 안의 모든 메시 정점을 **변형된 cage 안으로 사상**한�
 - (2차) **`SomiglianaCoordinatesBaker.cs` / `Deformer.cs`** — 동일 인터페이스로 Kelvin 커널 + corotational 확장.
 
 ### 재사용할 참조 구현 / 자료
+
+> 선행연구 조사 전반(케이지 생성·스켈레톤 결합·인체 응용 포함)은 [cage-refs.md](cage-refs.md)에 모았다.
+
 - **Green 이식 원본**: gptoolbox `green_coordinates.m` (Alec Jacobson, libigl 기반) — 3D `s_j`·`GCTriInt` 폐형식 포함.
   https://github.com/alecjacobson/gptoolbox/blob/master/mesh/green_coordinates.m
 - **Green 원 논문 테크리포트**(부록 수식): https://www.wisdom.weizmann.ac.il/~ylipman/GC/gc_techrep.pdf
