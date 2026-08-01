@@ -14,10 +14,10 @@ public class mapping_tester : MonoBehaviour{
     [HideInInspector] public cage_constants constants;
     public MeshFilter cage_view;
 
-    // Debug snapshots drawn as gizmos in the live cage space: escaped mesh vertices and the tube
-    // segments that self-intersect. Populated by the inspector check buttons.
+    // Debug snapshots drawn as gizmos in the live cage space: escaped mesh vertices and the cage
+    // triangles that self-intersect. Populated by the inspector check buttons.
     [HideInInspector] public Vector3[] outside_points;
-    [HideInInspector] public int[] collide_segments;
+    [HideInInspector] public int[] collide_tris;
 
     // A bone spans a joint's parent to the joint itself, so the far-end joint names it.
     // Leaf joints (Head, ToeBase, finger tips) end no bone; finger phalanges are left out.
@@ -125,8 +125,8 @@ public class mapping_tester : MonoBehaviour{
         }
     }
 
-    // Pure regeneration: forward-kinematic joints from the current bone lengths, then lay the
-    // baked cross-sections on top. Runs on every length edit.
+    // Pure regeneration: forward-kinematic joints from the current bone lengths, then the baked
+    // rings re-placed on them. Runs on every length edit.
     public void update_cage(){
         if(constants != null){
             var lengths = measure().ToDictionary(b => b.joint, b => b.native_length);
@@ -143,12 +143,15 @@ public class mapping_tester : MonoBehaviour{
             Gizmos.color = new Color(0.2f, 0.9f, 1f);
             Gizmos.DrawWireMesh(cage_view.sharedMesh);
 
-            // Segments in self-collision, highlighted on the live cage.
-            if(collide_segments != null){
+            // Panels in self-collision, outlined on the live cage.
+            if(collide_tris != null){
                 Gizmos.color = Color.red;
                 var verts = cage_view.sharedMesh.vertices;
-                foreach(var a in collide_segments){
-                    draw_segment_box(verts, a);
+                var tris = cage_view.sharedMesh.triangles;
+                foreach(var t in collide_tris){
+                    for(var e = 0; e < 3; e++){
+                        Gizmos.DrawLine(verts[tris[t * 3 + e]], verts[tris[t * 3 + (e + 1) % 3]]);
+                    }
                 }
             }
 
@@ -160,18 +163,6 @@ public class mapping_tester : MonoBehaviour{
                     Gizmos.DrawCube(p, Vector3.one * r);
                 }
             }
-        }
-    }
-
-    // A tube segment is the box spanning ring a to ring a+1: 4 corners each, matched by index.
-    static void draw_segment_box(Vector3[] verts, int a){
-        var lo = a * 4;
-        var hi = (a + 1) * 4;
-        for(var k = 0; k < 4; k++){
-            var kn = (k + 1) % 4;
-            Gizmos.DrawLine(verts[lo + k], verts[lo + kn]);
-            Gizmos.DrawLine(verts[hi + k], verts[hi + kn]);
-            Gizmos.DrawLine(verts[lo + k], verts[hi + k]);
         }
     }
 
@@ -224,8 +215,8 @@ public class mapping_tester : MonoBehaviour{
 
                 if(mapping.constants != null && GUILayout.Button("check self-collision")){
                     var lengths = mapping.measure().ToDictionary(b => b.joint, b => b.native_length);
-                    mapping.collide_segments = cage.self_overlaps(lengths, mapping.constants).ToArray();
-                    Debug.Log($"cage: {mapping.collide_segments.Length} segments in self-collision");
+                    mapping.collide_tris = cage.self_overlaps(lengths, mapping.constants).ToArray();
+                    Debug.Log($"cage: {mapping.collide_tris.Length} cage triangles in self-collision");
                 }
             }
         }
