@@ -18,16 +18,22 @@ using UnityEngine;
 // mesh. All geometry lives in root-bone (Hips) local space; the cage GameObject is a child of
 // that root, so the scene's x100 scale is inherited.
 
-// A ring is placed by its anchor joints rather than fixed to one: n points away from the body,
-// so the plane sits at the anchor farthest along it -- the lower knee, the outer fingertip --
-// and the rectangle spans the anchors' own spread plus the baked reach on each side.
+// A ring is placed by its anchor joints rather than fixed to one: n points away from the body, so
+// an edge sits at the anchor farthest along it -- the lower knee, the outer fingertip -- and the
+// rectangle spans the anchors' own spread plus the baked reach on each side.
+//
+// The two silhouette edges are placed independently, each from the anchors on its own side. A ring
+// shared by both limbs (the knees, the soles) therefore tilts to track both legs, rather than being
+// pinned along n by whichever leg is longer. A ring on a single limb lists that limb's joints on
+// both sides and stays axis aligned.
 [Serializable]
 public class cage_ring{
-    public int[] anchor;        // joints placing the ring (indices into cage_constants.joint_name)
+    public int[] anchor_hi;     // joints placing the +s edge (indices into cage_constants.joint_name)
+    public int[] anchor_lo;     // joints placing the -s edge
     public Vector3 n;           // ring normal, pointing away from the body
     public Vector3 s;           // in-plane axis the front/back silhouette runs along
     public Vector3 d;           // in-plane axis separating the front and back panels
-    public float along;         // plane offset past the farthest anchor, along n
+    public float along;         // edge offset past its farthest anchor, along n
     public float s_lo, s_hi;    // reach beyond the anchors' span, on the -s and +s side
     public float d_lo, d_hi;
 }
@@ -49,14 +55,18 @@ public static class cage{
     // front/back side. Vertex index is ring * 4 + corner.
     const int hi_front = 0, hi_back = 1, lo_back = 2, lo_front = 3;
 
-    // build reconstructs the joint centers from the supplied lengths and re-places the baked
-    // rings on them. Lengths are native (joint.localPosition.magnitude), keyed by joint name;
-    // joints nobody edits (fingers, toes) fall back to their rest length.
-    public static Mesh build(IReadOnlyDictionary<string, float> lengths, cage_constants k){
-        var verts = ring_corners(k, joint_centers(lengths, k));
+    // The cage control points for the given lengths, in rig root local space: the joint centers
+    // reconstructed from those lengths with the baked rings re-placed on them. Lengths are native
+    // (joint.localPosition.magnitude), keyed by joint name; joints nobody edits (fingers, toes)
+    // fall back to their baked rest length, so an empty table yields the rest cage.
+    public static Vector3[] points(IReadOnlyDictionary<string, float> lengths, cage_constants k){
+        return ring_corners(k, joint_centers(lengths, k));
+    }
 
+    // The same control points wrapped in the fixed-topology mesh, for display.
+    public static Mesh build(IReadOnlyDictionary<string, float> lengths, cage_constants k){
         var mesh = new Mesh{ name = "cage" };
-        mesh.vertices = verts;
+        mesh.vertices = points(lengths, k);
         mesh.triangles = k.tris;
         mesh.RecalculateNormals();
         mesh.RecalculateBounds();
@@ -82,23 +92,28 @@ public static class cage{
     }
 
     // The ring axes are orthonormal and cardinal, so summing the three components rebuilds a
-    // corner exactly.
+    // corner exactly. Each silhouette edge is placed along n by its own anchors; the depth extent
+    // is shared, which keeps the four corners planar however far the two edges drift apart.
     static Vector3[] ring_corners(cage_constants k, Vector3[] jc){
         var verts = new Vector3[k.rings.Length * 4];
         for(var i = 0; i < k.rings.Length; i++){
             var r = k.rings[i];
-            var a = r.anchor.Select(j => jc[j]).ToArray();
+            var a_hi = r.anchor_hi.Select(j => jc[j]).ToArray();
+            var a_lo = r.anchor_lo.Select(j => jc[j]).ToArray();
 
-            var plane = r.n * (a.Max(p => Vector3.Dot(p, r.n)) + r.along);
-            var lo_s = r.s * (a.Min(p => Vector3.Dot(p, r.s)) - r.s_lo);
-            var hi_s = r.s * (a.Max(p => Vector3.Dot(p, r.s)) + r.s_hi);
+            var plane_hi = r.n * (a_hi.Max(p => Vector3.Dot(p, r.n)) + r.along);
+            var plane_lo = r.n * (a_lo.Max(p => Vector3.Dot(p, r.n)) + r.along);
+            var edge_hi = r.s * (a_hi.Max(p => Vector3.Dot(p, r.s)) + r.s_hi);
+            var edge_lo = r.s * (a_lo.Min(p => Vector3.Dot(p, r.s)) - r.s_lo);
+
+            var a = a_hi.Concat(a_lo);
             var lo_d = r.d * (a.Min(p => Vector3.Dot(p, r.d)) - r.d_lo);
             var hi_d = r.d * (a.Max(p => Vector3.Dot(p, r.d)) + r.d_hi);
 
-            verts[i * 4 + hi_front] = plane + hi_s + hi_d;
-            verts[i * 4 + hi_back] = plane + hi_s + lo_d;
-            verts[i * 4 + lo_back] = plane + lo_s + lo_d;
-            verts[i * 4 + lo_front] = plane + lo_s + hi_d;
+            verts[i * 4 + hi_front] = plane_hi + edge_hi + hi_d;
+            verts[i * 4 + hi_back] = plane_hi + edge_hi + lo_d;
+            verts[i * 4 + lo_back] = plane_lo + edge_lo + lo_d;
+            verts[i * 4 + lo_front] = plane_lo + edge_lo + hi_d;
         }
         return verts;
     }
@@ -216,14 +231,21 @@ public static class cage{
             var (lo_s, hi_s) = inflate(pts.Min(p => Vector3.Dot(p, r.s)), pts.Max(p => Vector3.Dot(p, r.s)));
             var (lo_d, hi_d) = inflate(pts.Min(p => Vector3.Dot(p, r.d)), pts.Max(p => Vector3.Dot(p, r.d)));
 
+            // Which anchors place which silhouette edge, by the side of the ring they rest on. The
+            // two legs of a shared ring separate here; a single-limb ring lands on both sides.
+            var mid = (anchors.Min(p => Vector3.Dot(p, r.s)) + anchors.Max(p => Vector3.Dot(p, r.s))) * 0.5f;
+            var hi = r.anchor.Where(j => Vector3.Dot(rest[j], r.s) >= mid).ToArray();
+            var lo = r.anchor.Where(j => Vector3.Dot(rest[j], r.s) <= mid).ToArray();
+
             return new cage_ring{
-                anchor = r.anchor,
+                anchor_hi = hi,
+                anchor_lo = lo,
                 n = r.n,
                 s = r.s,
                 d = r.d,
                 along = r.terminal ? (wrap.Max(p => Vector3.Dot(p, r.n)) - plane) * (1f + margin) : 0f,
-                s_lo = anchors.Min(p => Vector3.Dot(p, r.s)) - lo_s,
-                s_hi = hi_s - anchors.Max(p => Vector3.Dot(p, r.s)) + r.hi / scale,
+                s_lo = lo.Min(j => Vector3.Dot(rest[j], r.s)) - lo_s,
+                s_hi = hi_s - hi.Max(j => Vector3.Dot(rest[j], r.s)) + r.hi / scale,
                 d_lo = anchors.Min(p => Vector3.Dot(p, r.d)) - lo_d + r.back / scale,
                 d_hi = hi_d - anchors.Max(p => Vector3.Dot(p, r.d)) + r.front / scale,
             };
@@ -359,7 +381,7 @@ public static class cage{
         var weights = mesh.boneWeights;
         var verts = mesh.vertices;
 
-        var cage_verts = ring_corners(k, joint_centers(lengths, k));
+        var cage_verts = points(lengths, k);
 
         var outside = new List<Vector3>();
         for(var i = 0; i < verts.Length; i++){
@@ -393,7 +415,7 @@ public static class cage{
     // stays clean as long as the rings keep their order, so a hit here means a length edit pushed
     // one panel through another.
     public static List<int> self_overlaps(IReadOnlyDictionary<string, float> lengths, cage_constants k){
-        var v = ring_corners(k, joint_centers(lengths, k));
+        var v = points(lengths, k);
         var count = k.tris.Length / 3;
 
         bool shares_corner(int a, int b){

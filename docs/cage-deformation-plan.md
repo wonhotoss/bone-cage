@@ -69,6 +69,26 @@ rest cage 안의 모든 메시 정점을 **변형된 cage 안으로 사상**한�
 
 ---
 
+## 구현 현황 (implemented)
+
+파일: [cage_deform.cs](../unity/Assets/Scenes/cage_deform.cs), [mapping_tester.cs](../unity/Assets/Scenes/mapping_tester.cs).
+
+파이프라인 전체가 인스펙터 버튼으로 연결되어 있다. **본 길이 슬라이더 → 케이지 갱신 → `deform` → `refresh rest pose`.**
+
+- **좌표 교체 지점** — `cage_deform.map(coords, pts, rest_cage, live_cage, tris)` 하나. `cage_coords` 열거형에 값을 추가하고 `map`의 switch만 넓히면 방법을 갈아끼운다. 인스펙터의 `coords` 드롭다운으로 선택.
+- **1차 방법 = MVC** (Ju/Schaefer/Warren 2005 폐형식). 계획상 baseline. 좌표는 캐시하지 않고 매 호출 재계산한다(폐형식이라 충분히 싸다). Green/Somigliana는 bind가 무거우므로 직렬화 bind 단계를 원할 것이고, 그때도 위 호출 지점은 그대로다.
+- **`deform`** — 항상 **원본 소스 지오메트리**에서 읽어 rest cage → 현재 cage로 사상하고 타깃 메시 버퍼에 쓴다. 자기 출력에 누적되지 않으므로 길이 편집·방법 변경 후 몇 번이든 다시 눌러도 된다(슬라이더는 원본 rest 기준 절대값이라 드리프트가 없다).
+    - 공간: 메시 버퍼(bind space) ↔ 케이지 공간(rig root local)은 `bind_to_rig = root.W2L · bone[0].L2W · bindpose[0]`로 오간다. bind pose 정의상 모든 본이 같은 행렬을 주며, 소스 스켈레톤이 그 pose에 그대로 서 있다.
+- **`refresh rest pose`** — 현재 본 transform 기준으로 bindpose를 다시 굽는다(`bindpose[b] = bone[b].W2L · root.L2W · bind_to_rig`). 그러면 현재 pose에서의 스키닝이 항등이 되어 버퍼가 화면에 그대로 나오고, 그 위에 얹는 애니메이션이 새 몸을 변형한다. 본은 움직일 필요가 없다 — 슬라이더가 이미 변형된 스켈레톤에 세워 두었고, 길이만 바뀌었으므로 회전은 불변이다.
+    - 합성 결과가 `root.L2W · p_deformed`이므로, **deform + refresh 후 메시는 변형된 케이지 안에 rest 메시가 rest 케이지 안에 있던 것과 정확히 같은 자리에 놓인다** → 눈으로 검증 가능.
+- **중간 상태** — `deform`만 누른 직후 뷰포트는 (구) rest pose로 스키닝된 결과, 즉 길이 변화가 두 번 적용된 모습이다. `refresh rest pose`를 누르면 해소된다.
+
+### 검증 (수행)
+
+MVC 커널은 Unity 밖에서 수치 검증했다(단위 큐브 케이지 + 실제 7링 케이지):
+partition of unity 1e-16, **linear precision `Σ w_i p_i = p` 1e-15**, affine 재현 1e-15, identity 1e-15, 크라운 링 stretch에 대해 국소·단조 응답.
+알려진 한계도 확인 — 이 plus 자형 케이지는 오목해서 표본 대부분에 **음수 가중치**가 나온다(겨드랑이·가랑이). 두께 붕괴와 함께 Green으로 넘어갈 이유.
+
 ## Unity 구현 계획
 
 빈 Unity 6 URP 프로젝트(구현 전무)이므로 from scratch. `Assets/Scripts/CageDeform/` 신설.

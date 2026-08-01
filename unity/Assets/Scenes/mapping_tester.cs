@@ -14,6 +14,9 @@ public class mapping_tester : MonoBehaviour{
     [HideInInspector] public cage_constants constants;
     public MeshFilter cage_view;
 
+    // Which coordinates the deform button maps the mesh through.
+    public cage_coords coords;
+
     // Debug snapshots drawn as gizmos in the live cage space: escaped mesh vertices and the cage
     // triangles that self-intersect. Populated by the inspector check buttons.
     [HideInInspector] public Vector3[] outside_points;
@@ -134,6 +137,46 @@ public class mapping_tester : MonoBehaviour{
         }
     }
 
+    // Bind space -- the space the mesh's own vertex buffer lives in -- to rig root local space,
+    // which is where the cage is built. Every bone yields the same matrix by definition of the bind
+    // pose, and the source skeleton still stands in it, so bone 0 supplies it.
+    Matrix4x4 bind_to_rig => source.rootBone.worldToLocalMatrix
+        * source.bones[0].localToWorldMatrix * source.sharedMesh.bindposes[0];
+
+    // Map the mesh through the cage: rest cage -> current cage, straight into the target's vertex
+    // buffer. Reads the pristine source geometry every time, so it can be re-run after any length
+    // edit or with any coordinates, and never compounds with its own output.
+    // The buffer holds the rest shape, so the viewport still shows this skinned by the *old* rest
+    // pose -- the length edit applied twice -- until refresh_rest_pose rebinds it.
+    public void deform(){
+        var lengths = measure().ToDictionary(b => b.joint, b => b.native_length);
+        var rest_cage = cage.points(new Dictionary<string, float>(), constants);
+        var live_cage = cage.points(lengths, constants);
+
+        var to_rig = bind_to_rig;
+        var rest_pts = source.sharedMesh.vertices.Select(v => to_rig.MultiplyPoint3x4(v)).ToArray();
+        var moved = cage_deform.map(coords, rest_pts, rest_cage, live_cage, constants.tris);
+
+        var to_bind = to_rig.inverse;
+        var mesh = target.sharedMesh;
+        mesh.vertices = moved.Select(p => to_bind.MultiplyPoint3x4(p)).ToArray();
+        mesh.RecalculateNormals();
+        mesh.RecalculateBounds();
+    }
+
+    // Make the deformed skeleton the mesh's rest pose: rebind every bone so that skinning at the
+    // current transforms is the identity, which is what puts the vertex buffer on screen as it was
+    // written. The bones need no moving -- the sliders already stand them at the deformed skeleton,
+    // and only lengths changed, so their rotations are untouched. Afterwards rest pose, current
+    // pose and vertex buffer all agree, and animation on top deforms the new body.
+    public void refresh_rest_pose(){
+        var to_world = target.rootBone.localToWorldMatrix * bind_to_rig;
+        var mesh = target.sharedMesh;
+        mesh.bindposes = target.bones.Select(b => b.worldToLocalMatrix * to_world).ToArray();
+        // The renderer caches its skinning setup, so hand the mesh back to make it re-read them.
+        target.sharedMesh = mesh;
+    }
+
     void OnDrawGizmosSelected(){
         if(cage_view != null && cage_view.sharedMesh != null){
             // The cage child is identity-local under the rig root, so everything below shares
@@ -217,6 +260,24 @@ public class mapping_tester : MonoBehaviour{
                     var lengths = mapping.measure().ToDictionary(b => b.joint, b => b.native_length);
                     mapping.collide_tris = cage.self_overlaps(lengths, mapping.constants).ToArray();
                     Debug.Log($"cage: {mapping.collide_tris.Length} cage triangles in self-collision");
+                }
+
+                if(mapping.constants != null){
+                    EditorGUILayout.Space();
+                    EditorGUILayout.LabelField("mesh", EditorStyles.boldLabel);
+
+                    // Both edit the mesh buffer of a runtime clone, so neither is undoable; press
+                    // "import source" to get the original geometry back.
+                    if(GUILayout.Button("deform")){
+                        var clock = System.Diagnostics.Stopwatch.StartNew();
+                        mapping.deform();
+                        Debug.Log($"cage: deformed {mapping.target.sharedMesh.vertexCount} vertices through {mapping.coords} in {clock.ElapsedMilliseconds} ms");
+                    }
+
+                    if(GUILayout.Button("refresh rest pose")){
+                        mapping.refresh_rest_pose();
+                        Debug.Log("cage: rest pose rebound to the current skeleton");
+                    }
                 }
             }
         }
