@@ -119,17 +119,25 @@ public static class cage{
     }
 
 #if UNITY_EDITOR
-    // Ring slots. The topology tables index these directly. hi/lo name the two sides of a
-    // ring's silhouette axis, so an "hi" limb ring is the one on the +side (character's left).
-    const int crown = 0, elbow_hi = 1, tip_hi = 2, elbow_lo = 3, tip_lo = 4, knee = 5, sole = 6;
+    // Ring slots. The topology tables index these directly. hi/lo name the two sides of a ring's
+    // silhouette axis, so an "hi" limb ring is the one on the +side (character's left). The torso
+    // meets the arms at the arm rings and the legs at the hip ring; the elbow, knee and sole rings
+    // hang off those.
+    const int crown = 0,
+        arm_hi = 1, elbow_hi = 2, tip_hi = 3,
+        arm_lo = 4, elbow_lo = 5, tip_lo = 6,
+        hip = 7, knee = 8, sole = 9;
 
     // Panel outlines as (ring, silhouette side) pairs, all traced in the same sense. Each is
     // emitted twice: once on the front corners, once reversed on the back.
     static readonly (int ring, bool hi)[][] panels = {
-        new[]{ (crown, true), (elbow_hi, true), (elbow_hi, false), (knee, true),
-               (knee, false), (elbow_lo, false), (elbow_lo, true), (crown, false) },
+        new[]{ (crown, true), (arm_hi, true), (arm_hi, false), (hip, true),
+               (hip, false), (arm_lo, false), (arm_lo, true), (crown, false) },
+        new[]{ (arm_hi, true), (elbow_hi, true), (elbow_hi, false), (arm_hi, false) },
         new[]{ (elbow_hi, true), (tip_hi, true), (tip_hi, false), (elbow_hi, false) },
+        new[]{ (arm_lo, false), (elbow_lo, false), (elbow_lo, true), (arm_lo, true) },
         new[]{ (elbow_lo, false), (tip_lo, false), (tip_lo, true), (elbow_lo, true) },
+        new[]{ (hip, true), (knee, true), (knee, false), (hip, false) },
         new[]{ (knee, true), (sole, true), (sole, false), (knee, false) },
     };
 
@@ -137,9 +145,11 @@ public static class cage{
     // spans a quad joining the front outline to the back; the four pairs that name one ring
     // twice are its own rectangle, which is where the shell caps.
     static readonly (int ring, bool hi)[] perimeter = {
-        (crown, true), (elbow_hi, true), (tip_hi, true), (tip_hi, false), (elbow_hi, false),
-        (knee, true), (sole, true), (sole, false), (knee, false),
-        (elbow_lo, false), (tip_lo, false), (tip_lo, true), (elbow_lo, true), (crown, false),
+        (crown, true), (arm_hi, true), (elbow_hi, true), (tip_hi, true),
+        (tip_hi, false), (elbow_hi, false), (arm_hi, false),
+        (hip, true), (knee, true), (sole, true), (sole, false), (knee, false), (hip, false),
+        (arm_lo, false), (elbow_lo, false), (tip_lo, false),
+        (tip_lo, true), (elbow_lo, true), (arm_lo, true), (crown, false),
     };
 
     // Fractional slack added to every measured extent so the shell clears the flesh instead of
@@ -159,8 +169,11 @@ public static class cage{
         public Vector3 n, s, d;
         public bool terminal;
         public float front, back;   // extra depth reach past the flesh, in scene units
-        public float hi;            // the same on the +silhouette side: up on the elbow and
+        public float hi;            // the same on the +silhouette side: up on the arm, elbow and
                                     // fingertip rings, the character's left on the others
+        public float outward;       // the same along n, which moves the whole ring plane out. The
+                                    // cross-section is still measured at the anchor, so a ring
+                                    // pushed out along a limb keeps the girth it had there.
     }
 
     public static cage_constants bake(SkinnedMeshRenderer source){
@@ -197,13 +210,20 @@ public static class cage{
         }
 
         // The reach fields are what pull the panels out over flesh the rings themselves do not see:
-        // the face, the chest and belly, the buttocks, the shoulders above the elbows. Editable.
-        var recipes = new recipe[7];
+        // the face, the chest and belly, the shoulders. They belong to whichever ring bounds the
+        // torso panel there, which is why the arm rings carry the reach and the elbow rings do not.
+        // Editable.
+        var recipes = new recipe[10];
         recipes[crown] = new recipe{ anchor = js("Head"), wrap = js("Head"), n = up, s = side, d = depth, terminal = true, front = 0.1f };
-        recipes[elbow_hi] = new recipe{ anchor = js("LeftForeArm"), wrap = js("LeftArm"), n = side, s = up, d = depth, terminal = false, front = 0.2f, back = 0.1f, hi = 0.05f };
+        recipes[arm_hi] = new recipe{ anchor = js("LeftArm"), wrap = js("LeftShoulder"), n = side, s = up, d = depth, terminal = false, front = 0.2f, back = 0.1f, hi = 0.05f, outward = 0.05f };
+        recipes[elbow_hi] = new recipe{ anchor = js("LeftForeArm"), wrap = js("LeftArm"), n = side, s = up, d = depth, terminal = false, hi = 0.05f };
         recipes[tip_hi] = new recipe{ anchor = new[]{ far_finger("LeftHand") }, wrap = js("LeftHand"), n = side, s = up, d = depth, terminal = true };
-        recipes[elbow_lo] = new recipe{ anchor = js("RightForeArm"), wrap = js("RightArm"), n = -side, s = up, d = depth, terminal = false, front = 0.2f, back = 0.1f, hi = 0.05f };
+        recipes[arm_lo] = new recipe{ anchor = js("RightArm"), wrap = js("RightShoulder"), n = -side, s = up, d = depth, terminal = false, front = 0.2f, back = 0.1f, hi = 0.05f, outward = 0.05f };
+        recipes[elbow_lo] = new recipe{ anchor = js("RightForeArm"), wrap = js("RightArm"), n = -side, s = up, d = depth, terminal = false, hi = 0.05f };
         recipes[tip_lo] = new recipe{ anchor = new[]{ far_finger("RightHand") }, wrap = js("RightHand"), n = -side, s = up, d = depth, terminal = true };
+        // The hip ring stands on the higher of the two hip joints (per side, so each edge follows
+        // its own), and wraps whatever crosses that height -- pelvis and the top of the thighs.
+        recipes[hip] = new recipe{ anchor = js("LeftUpLeg", "RightUpLeg"), wrap = js("Hips"), n = up, s = side, d = depth, terminal = false };
         recipes[knee] = new recipe{ anchor = js("LeftLeg", "RightLeg"), wrap = js("LeftUpLeg", "RightUpLeg"), n = -up, s = side, d = depth, terminal = false, back = 0.1f };
         recipes[sole] = new recipe{ anchor = js("LeftFoot", "LeftToeBase", "RightFoot", "RightToeBase"), wrap = js("LeftFoot", "RightFoot"), n = -up, s = side, d = depth, terminal = true };
 
@@ -243,7 +263,8 @@ public static class cage{
                 n = r.n,
                 s = r.s,
                 d = r.d,
-                along = r.terminal ? (wrap.Max(p => Vector3.Dot(p, r.n)) - plane) * (1f + margin) : 0f,
+                along = (r.terminal ? (wrap.Max(p => Vector3.Dot(p, r.n)) - plane) * (1f + margin) : 0f)
+                    + r.outward / scale,
                 s_lo = lo.Min(j => Vector3.Dot(rest[j], r.s)) - lo_s,
                 s_hi = hi_s - hi.Max(j => Vector3.Dot(rest[j], r.s)) + r.hi / scale,
                 d_lo = anchors.Min(p => Vector3.Dot(p, r.d)) - lo_d + r.back / scale,
