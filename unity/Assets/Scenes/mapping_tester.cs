@@ -198,6 +198,17 @@ public class mapping_tester : MonoBehaviour{
         target.sharedMesh = mesh;
     }
 
+    // The whole consequence of a length edit: the cage re-placed on the new skeleton, the mesh
+    // mapped through it, and the rest pose rebound so the viewport shows the new body instead of
+    // the edit applied twice. Cheap enough to run on every edit now that the bind is precomputed.
+    // Neither of the last two is undoable, so undoing a length leaves the body a step behind until
+    // the next edit; "import source" is the way back to the original geometry.
+    public void update_body(){
+        update_cage();
+        deform();
+        refresh_rest_pose();
+    }
+
     void OnDrawGizmosSelected(){
         if(cage_view != null && cage_view.sharedMesh != null){
             // The cage child is identity-local under the rig root, so everything below shares
@@ -249,7 +260,7 @@ public class mapping_tester : MonoBehaviour{
                 if(GUILayout.Button("reset bone lengths")){
                     Undo.RecordObjects(mapping.measure().Select(b => b.target).ToArray(), "reset bone lengths");
                     mapping.reset_lengths();
-                    mapping.update_cage();
+                    mapping.update_body();
                 }
 
                 foreach(var b in mapping.measure()){
@@ -259,7 +270,7 @@ public class mapping_tester : MonoBehaviour{
                     if(EditorGUI.EndChangeCheck()){
                         Undo.RecordObject(b.target, "edit bone length");
                         b.length = length;
-                        mapping.update_cage();
+                        mapping.update_body();
                     }
                 }
 
