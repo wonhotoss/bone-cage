@@ -30,8 +30,8 @@ public class mapping_tester : MonoBehaviour{
     [HideInInspector] public int[] collide_tris;
 
     // A bone spans a joint's parent to the joint itself, so the far-end joint names it.
-    // Leaf joints (Head, ToeBase, finger tips) end no bone; finger phalanges are left out.
-    static readonly (string name, string joint)[] anatomy = {
+    // Leaf joints (Head, ToeBase, finger tips) end no bone.
+    static readonly (string name, string joint)[] body = {
         ("pelvis", "Spine"),
         ("lumbar", "Spine1"),
         ("lower thorax", "Spine2"),
@@ -44,13 +44,11 @@ public class mapping_tester : MonoBehaviour{
         ("left clavicle", "LeftArm"),
         ("left upper arm", "LeftForeArm"),
         ("left forearm", "LeftHand"),
-        ("left hand", "LeftHandMiddle1"),
 
         ("right shoulder base", "RightShoulder"),
         ("right clavicle", "RightArm"),
         ("right upper arm", "RightForeArm"),
         ("right forearm", "RightHand"),
-        ("right hand", "RightHandMiddle1"),
 
         ("left hip", "LeftUpLeg"),
         ("left thigh", "LeftLeg"),
@@ -63,7 +61,18 @@ public class mapping_tester : MonoBehaviour{
         ("right foot", "RightToeBase"),
     };
 
+    static readonly string[] fingers = { "Thumb", "Index", "Middle", "Ring", "Pinky" };
+
+    // Every bone a slider edits. The three phalanx joints of each finger are numbered out from the
+    // palm rather than named, since the same ordinal is a different phalanx on the thumb; they carry
+    // a group so the inspector can fold a whole hand away.
+    static IEnumerable<(string group, string name, string joint)> anatomy => body
+        .Select(e => ("", e.name, e.joint))
+        .Concat(new[]{ "Left", "Right" }.SelectMany(h => fingers.SelectMany(f => Enumerable.Range(1, 3)
+            .Select(i => ($"{h.ToLower()} hand", $"{f.ToLower()} {i}", $"{h}Hand{f}{i}")))));
+
     public class bone{
+        public string group;
         public string name;
         public string joint;
         public Transform source;
@@ -88,7 +97,7 @@ public class mapping_tester : MonoBehaviour{
         var rest = source.rootBone.GetComponentsInChildren<Transform>(true).ToDictionary(b => b.name);
         var current = target.rootBone.GetComponentsInChildren<Transform>(true).ToDictionary(b => b.name);
 
-        return anatomy.Select(e => new bone{ name = e.name, joint = e.joint, source = rest[e.joint], target = current[e.joint] });
+        return anatomy.Select(e => new bone{ group = e.group, name = e.name, joint = e.joint, source = rest[e.joint], target = current[e.joint] });
     }
 
     public void reset_lengths(){
@@ -244,6 +253,9 @@ public class mapping_tester : MonoBehaviour{
 #if UNITY_EDITOR
     [CustomEditor(typeof(mapping_tester))]
     public class inspector: Editor{
+        // Which slider groups are unfolded. Inspector state, so it lives with the inspector.
+        readonly Dictionary<string, bool> open = new();
+
         public override void OnInspectorGUI(){
             DrawDefaultInspector();
 
@@ -263,14 +275,24 @@ public class mapping_tester : MonoBehaviour{
                     mapping.update_body();
                 }
 
-                foreach(var b in mapping.measure()){
-                    EditorGUI.BeginChangeCheck();
-                    var length = EditorGUILayout.Slider(b.name, b.length, b.rest * 0.5f, b.rest * 1.5f);
+                // Fifteen bones per hand would bury the body, so each hand folds into one header.
+                foreach(var g in mapping.measure().GroupBy(b => b.group)){
+                    if(g.Key != ""){
+                        open.TryGetValue(g.Key, out var was);
+                        open[g.Key] = EditorGUILayout.Foldout(was, g.Key, true);
+                    }
 
-                    if(EditorGUI.EndChangeCheck()){
-                        Undo.RecordObject(b.target, "edit bone length");
-                        b.length = length;
-                        mapping.update_body();
+                    if(g.Key == "" || open[g.Key]){
+                        foreach(var b in g){
+                            EditorGUI.BeginChangeCheck();
+                            var length = EditorGUILayout.Slider(b.name, b.length, b.rest * 0.5f, b.rest * 1.5f);
+
+                            if(EditorGUI.EndChangeCheck()){
+                                Undo.RecordObject(b.target, "edit bone length");
+                                b.length = length;
+                                mapping.update_body();
+                            }
+                        }
                     }
                 }
 

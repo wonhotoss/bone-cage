@@ -5,11 +5,12 @@ using UnityEngine;
 
 // Bone-length driven cage generation.
 //
-// The cage is deliberately coarse: seven axis-aligned rectangular rings -- crown, two elbows,
-// two fingertips, one across both knees, one across both soles -- whose corners are stitched
-// into flat panels. A front and back silhouette (torso, two arms, legs) plus one quad per
-// silhouette edge closes it: 28 vertices, 52 triangles. Four of those quads are the rings
-// themselves, capping the shell at the crown, the fingertips and the soles.
+// The body is deliberately coarse: ten axis-aligned rectangular rings -- crown, two arms, two
+// elbows, two wrists, one across both hips, one across both knees, one across both soles -- whose
+// corners are stitched into flat panels. A front and back silhouette (torso, two arms, legs) plus
+// one quad per silhouette edge closes it; two of those quads are the crown and sole rings
+// themselves, capping the shell there. Past each wrist the hand is resolved finger by finger, out
+// of posts rather than rings (see cage_post): 176 vertices, 348 triangles in all.
 //
 // bake() (editor) reads the rest mesh + skeleton once and distils everything the generator
 // needs into cage_constants: per-joint FK data, per-ring placement, and the fixed topology.
@@ -19,7 +20,7 @@ using UnityEngine;
 // that root, so the scene's x100 scale is inherited.
 
 // A ring is placed by its anchor joints rather than fixed to one: n points away from the body, so
-// an edge sits at the anchor farthest along it -- the lower knee, the outer fingertip -- and the
+// an edge sits at the anchor farthest along it -- the lower knee, the higher hip -- and the
 // rectangle spans the anchors' own spread plus the baked reach on each side.
 //
 // The two silhouette edges are placed independently, each from the anchors on its own side. A ring
@@ -38,6 +39,25 @@ public class cage_ring{
     public float d_lo, d_hi;
 }
 
+// A post is the pair of vertices one hand control point owns, spanning the palm's thickness. The
+// hand needs this weaker unit than a ring because its branch rings meet at shared control points --
+// the back of the hand has to stay a single polygon -- and because a finger ring straddles its own
+// bone rather than a cardinal axis.
+//
+// The in-plane position is an affine combination of joint centers plus a baked offset: one joint
+// for a finger ring, two halves for a valley between fingers, and (1+f, -f) to reach a virtual end
+// bone past the last phalanx, which is how that ring follows the phalanx it extends. The plate
+// coordinate comes from the wrist alone, so every post of a hand straddles the one thickness.
+[Serializable]
+public class cage_post{
+    public int[] anchor;        // joints the in-plane base is an affine combination of
+    public float[] weight;      // their weights, summing to 1
+    public Vector3 reach;       // baked in-plane offset from that base
+    public int center;          // the wrist; its plate coordinate is what the two vertices straddle
+    public Vector3 d;           // plate axis
+    public float d_lo, d_hi;    // the hand's one thickness, as offsets from that wrist coordinate
+}
+
 [Serializable]
 public class cage_constants{
     // Joints, in parent-before-child order, for forward kinematics.
@@ -47,7 +67,8 @@ public class cage_constants{
     public float[] joint_rest_len;  // native rest distance parent->joint
 
     public cage_ring[] rings;
-    public int[] tris;              // indices into the 4*rings.Length corner vertices
+    public cage_post[] posts;       // the hands, after the ring corners in the vertex order
+    public int[] tris;              // indices into 4*rings.Length + 2*posts.Length vertices
 }
 
 public static class cage{
@@ -55,12 +76,20 @@ public static class cage{
     // front/back side. Vertex index is ring * 4 + corner.
     const int hi_front = 0, hi_back = 1, lo_back = 2, lo_front = 3;
 
+    // The two ends of a post, along its plate axis. Vertex index is rings * 4 + post * 2 + end.
+    const int post_hi = 0, post_lo = 1;
+
     // The cage control points for the given lengths, in rig root local space: the joint centers
     // reconstructed from those lengths with the baked rings re-placed on them. Lengths are native
     // (joint.localPosition.magnitude), keyed by joint name; joints nobody edits (fingers, toes)
     // fall back to their baked rest length, so an empty table yields the rest cage.
     public static Vector3[] points(IReadOnlyDictionary<string, float> lengths, cage_constants k){
-        return ring_corners(k, joint_centers(lengths, k));
+        return control_points(k, joint_centers(lengths, k));
+    }
+
+    // Ring corners first, then post ends: the vertex order the topology tables are written against.
+    static Vector3[] control_points(cage_constants k, Vector3[] jc){
+        return ring_corners(k, jc).Concat(post_ends(k, jc)).ToArray();
     }
 
     // The same control points wrapped in the fixed-topology mesh, for display.
@@ -118,14 +147,30 @@ public static class cage{
         return verts;
     }
 
+    // A post sits where its anchors put it in the plate plane, and straddles the plate itself at
+    // the wrist's own coordinate -- not its own, so the whole hand keeps one flat back and palm.
+    static Vector3[] post_ends(cage_constants k, Vector3[] jc){
+        var verts = new Vector3[k.posts.Length * 2];
+        for(var i = 0; i < k.posts.Length; i++){
+            var p = k.posts[i];
+            var at = p.anchor.Select((j, a) => jc[j] * p.weight[a]).Aggregate((x, y) => x + y) + p.reach;
+            var flat = at - p.d * Vector3.Dot(at, p.d);
+            var seat = Vector3.Dot(jc[p.center], p.d);
+
+            verts[i * 2 + post_hi] = flat + p.d * (seat + p.d_hi);
+            verts[i * 2 + post_lo] = flat + p.d * (seat + p.d_lo);
+        }
+        return verts;
+    }
+
 #if UNITY_EDITOR
     // Ring slots. The topology tables index these directly. hi/lo name the two sides of a ring's
     // silhouette axis, so an "hi" limb ring is the one on the +side (character's left). The torso
-    // meets the arms at the arm rings and the legs at the hip ring; the elbow, knee and sole rings
-    // hang off those.
+    // meets the arms at the arm rings and the legs at the hip ring; the elbow, wrist, knee and sole
+    // rings hang off those.
     const int crown = 0,
-        arm_hi = 1, elbow_hi = 2, tip_hi = 3,
-        arm_lo = 4, elbow_lo = 5, tip_lo = 6,
+        arm_hi = 1, elbow_hi = 2, wrist_hi = 3,
+        arm_lo = 4, elbow_lo = 5, wrist_lo = 6,
         hip = 7, knee = 8, sole = 9;
 
     // Panel outlines as (ring, silhouette side) pairs, all traced in the same sense. Each is
@@ -134,22 +179,50 @@ public static class cage{
         new[]{ (crown, true), (arm_hi, true), (arm_hi, false), (hip, true),
                (hip, false), (arm_lo, false), (arm_lo, true), (crown, false) },
         new[]{ (arm_hi, true), (elbow_hi, true), (elbow_hi, false), (arm_hi, false) },
-        new[]{ (elbow_hi, true), (tip_hi, true), (tip_hi, false), (elbow_hi, false) },
+        new[]{ (elbow_hi, true), (wrist_hi, true), (wrist_hi, false), (elbow_hi, false) },
         new[]{ (arm_lo, false), (elbow_lo, false), (elbow_lo, true), (arm_lo, true) },
-        new[]{ (elbow_lo, false), (tip_lo, false), (tip_lo, true), (elbow_lo, true) },
+        new[]{ (elbow_lo, false), (wrist_lo, false), (wrist_lo, true), (elbow_lo, true) },
         new[]{ (hip, true), (knee, true), (knee, false), (hip, false) },
         new[]{ (knee, true), (sole, true), (sole, false), (knee, false) },
     };
 
-    // The silhouette boundary of those panels, traced in the same sense. Every consecutive pair
-    // spans a quad joining the front outline to the back; the four pairs that name one ring
-    // twice are its own rectangle, which is where the shell caps.
-    static readonly (int ring, bool hi)[] perimeter = {
-        (crown, true), (arm_hi, true), (elbow_hi, true), (tip_hi, true),
-        (tip_hi, false), (elbow_hi, false), (arm_hi, false),
-        (hip, true), (knee, true), (sole, true), (sole, false), (knee, false), (hip, false),
-        (arm_lo, false), (elbow_lo, false), (tip_lo, false),
-        (tip_lo, true), (elbow_lo, true), (arm_lo, true), (crown, false),
+    // The silhouette boundary of those panels, traced in the same sense: every consecutive pair
+    // spans a quad joining the front outline to the back. It used to be one closed loop, but a
+    // wrist ring is where the arm hands over to a hand, whose own panels are the back of the hand
+    // and the palm -- so the arm spends its front and back edges on panels and its top and bottom
+    // here, and the hand does the opposite. No quad closes across a wrist, which breaks the loop
+    // into three chains. The pairs naming one ring twice are its own rectangle: the shell caps
+    // there, at the crown and the soles.
+    static readonly (int ring, bool hi)[][] perimeter = {
+        new[]{ (crown, true), (arm_hi, true), (elbow_hi, true), (wrist_hi, true) },
+        new[]{ (wrist_hi, false), (elbow_hi, false), (arm_hi, false),
+               (hip, true), (knee, true), (sole, true), (sole, false), (knee, false), (hip, false),
+               (arm_lo, false), (elbow_lo, false), (wrist_lo, false) },
+        new[]{ (wrist_lo, true), (elbow_lo, true), (arm_lo, true), (crown, false), (crown, true) },
+    };
+
+    // The five fingers, thumb first. A hand's silhouette axis runs from the thumb (+s) to the pinky
+    // (-s), and the six palm control points interleave with them.
+    static readonly string[] fingers = { "Thumb", "Index", "Middle", "Ring", "Pinky" };
+
+    // How far past the knuckle line a valley control point sits, in scene units, so the web between
+    // two fingers falls inside the shell. Editable constant: no joint of the rig marks it.
+    const float valley_reach = 0.01f;
+
+    // How far below the hand's plate the wrist ring's palm side reaches, in scene units. It is the
+    // same kind of slack as a recipe's reach, but the wrist ring takes its silhouette extent from
+    // the hand rather than from measure(), so it belongs here: the forearm is far thicker than the
+    // hand, and without it the arm panel pinches to the palm's thickness at the wrist. Editable.
+    const float wrist_drop = 0.01f;
+
+    // Extra girth for one finger ring, in scene units, across the palm plane -- the width read off
+    // the back of the hand, which is the only one a finger ring has. Rings are numbered as the hand
+    // is described: the branch ring a finger shares with its neighbours is 1, so ring 2 is the first
+    // one standing on a joint of its own. hi is the thumb side, lo the pinky side. Editable; a ring
+    // not listed keeps the width measured off the flesh.
+    static readonly (string finger, int ring, float hi, float lo)[] finger_reach = {
+        ("Index", 3, 0.001f, 0.001f),
+        ("Middle", 2, 0f, 0.001f),
     };
 
     // Fractional slack added to every measured extent so the shell clears the flesh instead of
@@ -170,7 +243,7 @@ public static class cage{
         public bool terminal;
         public float front, back;   // extra depth reach past the flesh, in scene units
         public float hi;            // the same on the +silhouette side: up on the arm, elbow and
-                                    // fingertip rings, the character's left on the others
+                                    // wrist rings, the character's left on the others
         public float outward;       // the same along n, which moves the whole ring plane out. The
                                     // cross-section is still measured at the anchor, so a ring
                                     // pushed out along a limb keeps the girth it had there.
@@ -203,12 +276,6 @@ public static class cage{
             return names.Select(n => index[n]).ToArray();
         }
 
-        // The fingertip ring hangs off the most distal finger bone, whichever of them that is.
-        int far_finger(string hand){
-            var h = index[hand];
-            return subtree(h, parent).OrderByDescending(j => (rest[j] - rest[h]).sqrMagnitude).First();
-        }
-
         // The reach fields are what pull the panels out over flesh the rings themselves do not see:
         // the face, the chest and belly, the shoulders. They belong to whichever ring bounds the
         // torso panel there, which is why the arm rings carry the reach and the elbow rings do not.
@@ -217,10 +284,12 @@ public static class cage{
         recipes[crown] = new recipe{ anchor = js("Head"), wrap = js("Head"), n = up, s = side, d = depth, terminal = true, front = 0.1f };
         recipes[arm_hi] = new recipe{ anchor = js("LeftArm"), wrap = js("LeftShoulder"), n = side, s = up, d = depth, terminal = false, front = 0.2f, back = 0.1f, hi = 0.05f, outward = 0.05f };
         recipes[elbow_hi] = new recipe{ anchor = js("LeftForeArm"), wrap = js("LeftArm"), n = side, s = up, d = depth, terminal = false, hi = 0.05f };
-        recipes[tip_hi] = new recipe{ anchor = new[]{ far_finger("LeftHand") }, wrap = js("LeftHand"), n = side, s = up, d = depth, terminal = true };
+        // The wrist rings hand the arms over to the hands, which measure them: their extents are
+        // overwritten below, since both need flesh windows the generic measure cannot express.
+        recipes[wrist_hi] = new recipe{ anchor = js("LeftHand"), wrap = js("LeftHand"), n = side, s = up, d = depth, terminal = false };
         recipes[arm_lo] = new recipe{ anchor = js("RightArm"), wrap = js("RightShoulder"), n = -side, s = up, d = depth, terminal = false, front = 0.2f, back = 0.1f, hi = 0.05f, outward = 0.05f };
         recipes[elbow_lo] = new recipe{ anchor = js("RightForeArm"), wrap = js("RightArm"), n = -side, s = up, d = depth, terminal = false, hi = 0.05f };
-        recipes[tip_lo] = new recipe{ anchor = new[]{ far_finger("RightHand") }, wrap = js("RightHand"), n = -side, s = up, d = depth, terminal = true };
+        recipes[wrist_lo] = new recipe{ anchor = js("RightHand"), wrap = js("RightHand"), n = -side, s = up, d = depth, terminal = false };
         // The hip ring stands on the higher of the two hip joints (per side, so each edge follows
         // its own), and wraps whatever crosses that height -- pelvis and the top of the thighs.
         recipes[hip] = new recipe{ anchor = js("LeftUpLeg", "RightUpLeg"), wrap = js("Hips"), n = up, s = side, d = depth, terminal = false };
@@ -272,18 +341,158 @@ public static class cage{
             };
         }
 
+        var rings = recipes.Select(measure).ToArray();
+        var posts = new List<cage_post>();
+        var plates = new List<(int hi, int lo)[]>();
+        var walls = new List<(int hi, int lo)[]>();
+
+        // A body post: the vertex pair one silhouette side of a ring owns, front then back.
+        (int hi, int lo) ends((int ring, bool hi) c){
+            return (corner(c, true), corner(c, false));
+        }
+
+        // One hand, past its wrist ring. n points out along the arm, s runs from the thumb (+) to
+        // the pinky (-), and d is the plate -- the back of the hand and the palm. mirror flips the
+        // trace for the hand whose frame comes out left handed against the ring frames.
+        void hand(string prefix, int slot, Vector3 n, bool mirror){
+            var s = depth;
+            var d = up;
+            var wrist = index[prefix];
+            var skin = subtree(wrist, parent).SelectMany(j => flesh[j]).ToArray();
+
+            // One thickness for the whole hand, measured over all of its flesh: every post straddles
+            // it, which is what keeps the side panels axis aligned and equally tall.
+            var (plate_lo, plate_hi) = inflate(skin.Min(p => Vector3.Dot(p, d)), skin.Max(p => Vector3.Dot(p, d)));
+            var seat = Vector3.Dot(rest[wrist], d);
+
+            int add(int[] anchor, float[] weight, Vector3 reach){
+                posts.Add(new cage_post{
+                    anchor = anchor, weight = weight, reach = reach,
+                    center = wrist, d = d, d_lo = plate_lo - seat, d_hi = plate_hi - seat,
+                });
+                return posts.Count - 1;
+            }
+
+            (int hi, int lo) pair(int p){
+                var v = recipes.Length * 4 + p * 2;
+                return (v + post_hi, v + post_lo);
+            }
+
+            // The wrist ring takes the hand's plate on its silhouette axis, and on its depth axis
+            // the palm at the wrist -- measured within half a metacarpal of the ring plane, since
+            // its own slab is scaled to the forearm and would take the width across spread fingers.
+            var slice = skin.Where(p => Mathf.Abs(Vector3.Dot(p - rest[wrist], n)) <= rest_len[index[prefix + "Middle1"]] * 0.5f);
+            var (palm_lo, palm_hi) = inflate(slice.Min(p => Vector3.Dot(p, s)), slice.Max(p => Vector3.Dot(p, s)));
+            // Only the ring drops; the hand's own posts keep the plate, so the palm slopes up to it
+            // from the wrist instead of the whole hand fattening.
+            rings[slot].s_hi = plate_hi - seat;
+            rings[slot].s_lo = seat - plate_lo + wrist_drop / scale;
+            rings[slot].d_hi = palm_hi - Vector3.Dot(rest[wrist], s);
+            rings[slot].d_lo = Vector3.Dot(rest[wrist], s) - palm_lo;
+
+            // The six control points that carve the palm outline into finger branches. The thumb
+            // and pinky ends come from the hand's own width; the four valleys sit halfway between
+            // neighbouring finger roots, pushed away from the wrist past the knuckle line.
+            var (wide_lo, wide_hi) = inflate(skin.Min(p => Vector3.Dot(p, s)), skin.Max(p => Vector3.Dot(p, s)));
+            var thumb = index[prefix + "Thumb2"];
+            var pinky = index[prefix + "Pinky1"];
+
+            var cp = new int[6];
+            cp[0] = add(new[]{ thumb }, new[]{ 1f }, s * (wide_hi - Vector3.Dot(rest[thumb], s)));
+            for(var f = 0; f < 4; f++){
+                // The thumb branches off at its own second joint, the rest at their roots.
+                var a = f == 0 ? thumb : index[prefix + fingers[f] + "1"];
+                var b = index[prefix + fingers[f + 1] + "1"];
+                var span = (rest[a] + rest[b]) * 0.5f - rest[wrist];
+                var away = (span - d * Vector3.Dot(span, d)).normalized;
+                cp[f + 1] = add(new[]{ a, b }, new[]{ 0.5f, 0.5f }, away * (valley_reach / scale));
+            }
+            cp[5] = add(new[]{ pinky }, new[]{ 1f }, s * (wide_lo - Vector3.Dot(rest[pinky], s)));
+
+            // Rings up one finger, past the branch ring it shares with its neighbours: one on every
+            // joint out from the second, then one more on a virtual end bone, since the rig stops at
+            // the last phalanx. Each ring straddles its own bone direction rather than the s axis,
+            // so a splayed finger is still enclosed. The thumb is one ring short: its branch ring
+            // already sits at the knuckle.
+            (int hi, int lo)[] climb(int f){
+                var last = index[prefix + fingers[f] + "3"];
+                var tip = subtree(last, parent).SelectMany(j => flesh[j]);
+                var over = tip.Max(p => Vector3.Dot(p - rest[last], dir[last])) * (1f + margin);
+
+                var joints = f == 0
+                    ? new[]{ (j: last, past: 0f) }
+                    : new[]{ (j: index[prefix + fingers[f] + "2"], past: 0f), (j: last, past: 0f) };
+
+                return joints.Append((j: last, past: over / rest_len[last])).ToArray().Select((e, i) => {
+                    var along = (dir[e.j] - d * Vector3.Dot(dir[e.j], d)).normalized;
+                    var perp = s * Vector3.Dot(along, n) - n * Vector3.Dot(along, s);
+                    var at = Vector3.Dot(rest[e.j] + dir[e.j] * (rest_len[e.j] * e.past), perp);
+
+                    var meat = subtree(e.j, parent).SelectMany(j => flesh[j]);
+                    var (r_lo, r_hi) = inflate(meat.Min(p => Vector3.Dot(p, perp)), meat.Max(p => Vector3.Dot(p, perp)));
+
+                    // The branch ring is 1 and this chain starts at 2, which is how the table names
+                    // these rings; an unlisted ring finds no entry and reads back zeroes.
+                    var extra = finger_reach.FirstOrDefault(x => x.finger == fingers[f] && x.ring == i + 2);
+
+                    // A ring on a virtual end bone extrapolates past its joint, so it keeps
+                    // following that phalanx when the phalanx is lengthened.
+                    var anchor = e.past > 0f ? new[]{ e.j, parent[e.j] } : new[]{ e.j };
+                    var weight = e.past > 0f ? new[]{ 1f + e.past, -e.past } : new[]{ 1f };
+                    return (hi: add(anchor, weight, perp * (r_hi - at + extra.hi / scale)),
+                            lo: add(anchor, weight, perp * (r_lo - at - extra.lo / scale)));
+                }).ToArray();
+            }
+
+            var climbs = Enumerable.Range(0, fingers.Length).Select(climb).ToArray();
+
+            // The wrist ring's own two posts, as the hand reads them: its silhouette sides are the
+            // plate, its depth sides the thumb and pinky ends.
+            (int hi, int lo) wrist_end(bool front){
+                return (corner((slot, true), front), corner((slot, false), front));
+            }
+
+            // Out from a control point along one side of a finger and back down the other.
+            IEnumerable<(int hi, int lo)> finger(int f){
+                return new[]{ pair(cp[f]) }
+                    .Concat(climbs[f].Select(r => pair(r.hi)))
+                    .Concat(climbs[f].Reverse().Select(r => pair(r.lo)));
+            }
+
+            var digits = Enumerable.Range(0, fingers.Length);
+            var outline = new[]{ wrist_end(true) }
+                .Concat(digits.SelectMany(finger))
+                .Append(pair(cp[5]))
+                .Append(wrist_end(false))
+                .ToArray();
+
+            // The back of the hand and the palm are one polygon spanning the wrist and all six
+            // control points -- an octagon -- plus one polygon per finger.
+            var loops = new[]{ new[]{ wrist_end(true) }.Concat(cp.Select(pair)).Append(wrist_end(false)).ToArray() }
+                .Concat(digits.Select(f => finger(f).Append(pair(cp[f + 1])).ToArray()));
+
+            plates.AddRange(mirror ? loops.Select(l => l.Reverse().ToArray()) : loops);
+            walls.Add(mirror ? outline.Reverse().ToArray() : outline);
+        }
+
+        plates.AddRange(panels.Select(p => p.Select(ends).ToArray()));
+        walls.AddRange(perimeter.Select(c => c.Select(ends).ToArray()));
+        hand("LeftHand", wrist_hi, side, true);
+        hand("RightHand", wrist_lo, -side, false);
+
         var k = new cage_constants{
             joint_name = bones.Select(t => t.name).ToArray(),
             joint_parent = parent,
             joint_dir = dir,
             joint_rest_len = rest_len,
-            rings = recipes.Select(measure).ToArray(),
-            tris = topology(),
+            rings = rings,
+            posts = posts.ToArray(),
+            tris = topology(plates, walls),
         };
 
         // The panels are traced in one consistent sense, but which sense faces outward depends on
         // the rig's axes. The enclosed volume settles it: the root sits inside the cage.
-        if(volume(ring_corners(k, rest), k.tris) < 0.0){
+        if(volume(control_points(k, rest), k.tris) < 0.0){
             for(var t = 0; t < k.tris.Length; t += 3){
                 (k.tris[t + 1], k.tris[t + 2]) = (k.tris[t + 2], k.tris[t + 1]);
             }
@@ -338,29 +547,32 @@ public static class cage{
         return b;
     }
 
-    // Fixed topology: every panel on the front and mirrored on the back, then one quad per
-    // silhouette edge. The rig-independent part of the cage.
-    static int[] topology(){
+    // Fixed topology. Every face of the shell is either a plate -- a closed outline of posts, filled
+    // once on each of their two vertices -- or a wall, a chain of posts spanning one quad per
+    // consecutive pair. A post is the vertex pair one control point owns: a ring's silhouette side
+    // for the body, a cage_post for a hand.
+    static int[] topology(IEnumerable<(int hi, int lo)[]> plates, IEnumerable<(int hi, int lo)[]> walls){
         var tris = new List<int>();
 
-        foreach(var panel in panels){
-            strip(tris, panel.Select(c => corner(c, true)));
-            strip(tris, panel.Reverse().Select(c => corner(c, false)));
+        foreach(var plate in plates){
+            strip(tris, plate.Select(e => e.hi));
+            strip(tris, plate.Reverse().Select(e => e.lo));
         }
 
-        for(var i = 0; i < perimeter.Length; i++){
-            var a = perimeter[i];
-            var b = perimeter[(i + 1) % perimeter.Length];
-            strip(tris, new[]{ corner(b, true), corner(a, true), corner(a, false), corner(b, false) });
+        foreach(var wall in walls){
+            for(var i = 0; i + 1 < wall.Length; i++){
+                strip(tris, new[]{ wall[i + 1].hi, wall[i].hi, wall[i].lo, wall[i + 1].lo });
+            }
         }
 
         // Every directed edge appears exactly once and its opposite exists: the shell is closed and
-        // every panel is traced the same way round. The tables above are easy to mistrace by hand.
+        // every face is traced the same way round. This is what catches a mistraced table, and what
+        // holds the arm and the hand to opposite senses where they share a wrist rectangle.
         var edges = Enumerable.Range(0, tris.Count / 3)
             .SelectMany(t => Enumerable.Range(0, 3).Select(e => (a: tris[t * 3 + e], b: tris[t * 3 + (e + 1) % 3])))
             .ToArray();
-        Debug.Assert(edges.Distinct().Count() == edges.Length, "cage: panels overlap or are traced against each other");
-        Debug.Assert(edges.All(e => edges.Contains((e.b, e.a))), "cage: panels do not close the shell");
+        Debug.Assert(edges.Distinct().Count() == edges.Length, "cage: faces overlap or are traced against each other");
+        Debug.Assert(edges.All(e => edges.Contains((e.b, e.a))), "cage: faces do not close the shell");
         return tris.ToArray();
     }
 
