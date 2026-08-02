@@ -12,16 +12,49 @@ public enum cage_coords{
     mvc,
 }
 
+// A point set's coordinates in the rest cage. Solving them is the whole cost of the method --
+// closed form for mean value coordinates, a boundary integral for Green and Somigliana -- while
+// the rest cage that fixes them never moves, so it is solved once and every deformed cage
+// afterwards is just a rebuild from these numbers.
+public class cage_bind{
+    public cage_coords coords;  // which coordinates the weights are, so a method switch rebinds
+    public int stride;          // cage control points per bound point
+    public float[] w;           // point-major: w[p * stride + i]
+}
+
 public static class cage_deform{
-    // Coordinates are recomputed per call rather than cached: mean value coordinates are closed
-    // form and cheap enough to bind on the spot. Green and Somigliana coordinates are far heavier
-    // to bind and will want a serialized bind step, but they map through this same call.
-    public static Vector3[] map(cage_coords coords, Vector3[] pts, Vector3[] rest, Vector3[] live, int[] tris){
+    // Bind every point against the rest cage. Green and Somigliana carry per-face terms too and
+    // will widen cage_bind, but they bind through this same call.
+    public static cage_bind bind(cage_coords coords, Vector3[] pts, Vector3[] rest, int[] tris){
         switch(coords){
             case cage_coords.mvc:
-                return pts.Select(p => rebuild(mvc(p, rest, tris), live)).ToArray();
+                var w = new float[pts.Length * rest.Length];
+                for(var p = 0; p < pts.Length; p++){
+                    mvc(pts[p], rest, tris).CopyTo(w, p * rest.Length);
+                }
+                return new cage_bind{ coords = coords, stride = rest.Length, w = w };
             default:
                 throw new ArgumentOutOfRangeException(nameof(coords), coords, "no such cage coordinates");
+        }
+    }
+
+    // Rebuild every bound point from the deformed cage. Mean value coordinates are a plain weighted
+    // sum of the control points; Green and Somigliana add their face normal terms here.
+    public static Vector3[] map(cage_bind b, Vector3[] live){
+        switch(b.coords){
+            case cage_coords.mvc:
+                Debug.Assert(b.stride == live.Length, "cage: the bind and the cage disagree on the control point count");
+                var moved = new Vector3[b.w.Length / b.stride];
+                for(var p = 0; p < moved.Length; p++){
+                    var q = Vector3.zero;
+                    for(var i = 0; i < b.stride; i++){
+                        q += live[i] * b.w[p * b.stride + i];
+                    }
+                    moved[p] = q;
+                }
+                return moved;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(b.coords), b.coords, "no such cage coordinates");
         }
     }
 
@@ -101,13 +134,5 @@ public static class cage_deform{
             w[i] /= sum;
         }
         return w;
-    }
-
-    static Vector3 rebuild(float[] w, Vector3[] cage){
-        var p = Vector3.zero;
-        for(var i = 0; i < w.Length; i++){
-            p += cage[i] * w[i];
-        }
-        return p;
     }
 }

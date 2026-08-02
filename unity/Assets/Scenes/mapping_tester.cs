@@ -17,6 +17,13 @@ public class mapping_tester : MonoBehaviour{
     // Which coordinates the deform button maps the mesh through.
     public cage_coords coords;
 
+    // The rest mesh solved against the rest cage. Both sides are fixed by the import, so this is
+    // where the whole cost of the method sits and deform reduces to a weighted sum. Not serialized:
+    // one weight per mesh vertex per cage corner would outweigh the scene several times over, and
+    // the heavier coordinates the plan calls for want an asset of their own anyway -- so a scene
+    // reload rebinds.
+    cage_bind bound;
+
     // Debug snapshots drawn as gizmos in the live cage space: escaped mesh vertices and the cage
     // triangles that self-intersect. Populated by the inspector check buttons.
     [HideInInspector] public Vector3[] outside_points;
@@ -113,7 +120,9 @@ public class mapping_tester : MonoBehaviour{
         target.localBounds = source.localBounds;
 
 #if UNITY_EDITOR
+        // The bind is a product of the bake -- same rest geometry, same editor-only step.
         constants = cage.bake(source);
+        bind();
 #endif
         ensure_cage_view();
         update_cage();
@@ -143,21 +152,33 @@ public class mapping_tester : MonoBehaviour{
     Matrix4x4 bind_to_rig => source.rootBone.worldToLocalMatrix
         * source.bones[0].localToWorldMatrix * source.sharedMesh.bindposes[0];
 
+    // Solve the pristine source geometry against the rest cage. Both are constants of the import,
+    // so this runs there and after any cage rebuild, and deform is a weighted sum from then on.
+    public void bind(){
+        var to_rig = bind_to_rig;
+        var rest_pts = source.sharedMesh.vertices.Select(v => to_rig.MultiplyPoint3x4(v)).ToArray();
+        var rest_cage = cage.points(new Dictionary<string, float>(), constants);
+
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        bound = cage_deform.bind(coords, rest_pts, rest_cage, constants.tris);
+        Debug.Log($"cage: bound {rest_pts.Length} vertices to the rest cage through {coords} in {clock.ElapsedMilliseconds} ms");
+    }
+
     // Map the mesh through the cage: rest cage -> current cage, straight into the target's vertex
-    // buffer. Reads the pristine source geometry every time, so it can be re-run after any length
-    // edit or with any coordinates, and never compounds with its own output.
+    // buffer. The bind holds the rest side, so this reads nothing of the target's own output and
+    // can be re-run after any length edit or with any coordinates without compounding.
     // The buffer holds the rest shape, so the viewport still shows this skinned by the *old* rest
     // pose -- the length edit applied twice -- until refresh_rest_pose rebinds it.
     public void deform(){
+        // The dropdown is a plain field with no hook, so a method switch surfaces here.
+        if(bound == null || bound.coords != coords){
+            bind();
+        }
+
         var lengths = measure().ToDictionary(b => b.joint, b => b.native_length);
-        var rest_cage = cage.points(new Dictionary<string, float>(), constants);
-        var live_cage = cage.points(lengths, constants);
+        var moved = cage_deform.map(bound, cage.points(lengths, constants));
 
-        var to_rig = bind_to_rig;
-        var rest_pts = source.sharedMesh.vertices.Select(v => to_rig.MultiplyPoint3x4(v)).ToArray();
-        var moved = cage_deform.map(coords, rest_pts, rest_cage, live_cage, constants.tris);
-
-        var to_bind = to_rig.inverse;
+        var to_bind = bind_to_rig.inverse;
         var mesh = target.sharedMesh;
         mesh.vertices = moved.Select(p => to_bind.MultiplyPoint3x4(p)).ToArray();
         mesh.RecalculateNormals();
@@ -248,6 +269,7 @@ public class mapping_tester : MonoBehaviour{
                 if(GUILayout.Button("rebuild cage")){
                     mapping.constants = cage.bake(mapping.source);
                     mapping.update_cage();
+                    mapping.bind();
                 }
 
                 if(mapping.constants != null && GUILayout.Button("check containment")){

@@ -75,9 +75,10 @@ rest cage 안의 모든 메시 정점을 **변형된 cage 안으로 사상**한�
 
 파이프라인 전체가 인스펙터 버튼으로 연결되어 있다. **본 길이 슬라이더 → 케이지 갱신 → `deform` → `refresh rest pose`.**
 
-- **좌표 교체 지점** — `cage_deform.map(coords, pts, rest_cage, live_cage, tris)` 하나. `cage_coords` 열거형에 값을 추가하고 `map`의 switch만 넓히면 방법을 갈아끼운다. 인스펙터의 `coords` 드롭다운으로 선택.
-- **1차 방법 = MVC** (Ju/Schaefer/Warren 2005 폐형식). 계획상 baseline. 좌표는 캐시하지 않고 매 호출 재계산한다(폐형식이라 충분히 싸다). Green/Somigliana는 bind가 무거우므로 직렬화 bind 단계를 원할 것이고, 그때도 위 호출 지점은 그대로다.
-- **`deform`** — 항상 **원본 소스 지오메트리**에서 읽어 rest cage → 현재 cage로 사상하고 타깃 메시 버퍼에 쓴다. 자기 출력에 누적되지 않으므로 길이 편집·방법 변경 후 몇 번이든 다시 눌러도 된다(슬라이더는 원본 rest 기준 절대값이라 드리프트가 없다).
+- **좌표 교체 지점** — `cage_deform.bind(coords, pts, rest_cage, tris)` → `cage_bind`, `cage_deform.map(bind, live_cage)` 둘. `cage_coords` 열거형에 값을 추가하고 두 switch만 넓히면 방법을 갈아끼운다. 인스펙터의 `coords` 드롭다운으로 선택.
+- **1차 방법 = MVC** (Ju/Schaefer/Warren 2005 폐형식). 계획상 baseline. `cage_bind`는 메시 정점당 케이지 코너 하나씩의 가중치(point-major `float[]`)를 들고 있고, Green/Somigliana는 여기에 면 항을 더해 넓히면 된다.
+- **bind / deform 분리** — 좌표는 (rest 메시, rest 케이지, 방법)만의 함수, 즉 import 시점 상수다. `mapping_tester.bind()`가 import와 "rebuild cage"에서 한 번 풀고, `deform`은 라이브 케이지에 대한 가중합만 남는다. 36,426 정점 / 40 코너 · 76 면 기준으로 **~500 ms → ~1 ms**(.NET 10 Release 측정; Unity Mono는 배수만큼 느리다). 가중치 5 MB는 씬에 직렬화하지 않으므로 씬 리로드 후 첫 deform이 한 번 다시 bind한다 — Green/Somigliana의 무거운 bind는 계획대로 별도 에셋으로 굽는다.
+- **`deform`** — 항상 **원본 소스 지오메트리**에 대한 bind에서 읽어 rest cage → 현재 cage로 사상하고 타깃 메시 버퍼에 쓴다. 자기 출력에 누적되지 않으므로 길이 편집·방법 변경 후 몇 번이든 다시 눌러도 된다(슬라이더는 원본 rest 기준 절대값이라 드리프트가 없다). `coords` 드롭다운은 훅이 없는 평범한 필드이므로 `deform`이 스스로 불일치를 보고 재바인딩한다.
     - 공간: 메시 버퍼(bind space) ↔ 케이지 공간(rig root local)은 `bind_to_rig = root.W2L · bone[0].L2W · bindpose[0]`로 오간다. bind pose 정의상 모든 본이 같은 행렬을 주며, 소스 스켈레톤이 그 pose에 그대로 서 있다.
 - **`refresh rest pose`** — 현재 본 transform 기준으로 bindpose를 다시 굽는다(`bindpose[b] = bone[b].W2L · root.L2W · bind_to_rig`). 그러면 현재 pose에서의 스키닝이 항등이 되어 버퍼가 화면에 그대로 나오고, 그 위에 얹는 애니메이션이 새 몸을 변형한다. 본은 움직일 필요가 없다 — 슬라이더가 이미 변형된 스켈레톤에 세워 두었고, 길이만 바뀌었으므로 회전은 불변이다.
     - 합성 결과가 `root.L2W · p_deformed`이므로, **deform + refresh 후 메시는 변형된 케이지 안에 rest 메시가 rest 케이지 안에 있던 것과 정확히 같은 자리에 놓인다** → 눈으로 검증 가능.
