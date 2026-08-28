@@ -29,6 +29,7 @@ using UnityEngine;
 // both sides and stays axis aligned.
 [Serializable]
 public class cage_ring{
+    public string name;         // as the design document calls it; the debug view's tag
     public int[] anchor_hi;     // joints placing the +s edge (indices into cage_constants.joint_name)
     public int[] anchor_lo;     // joints placing the -s edge
     public Vector3 n;           // ring normal, pointing away from the body
@@ -50,6 +51,7 @@ public class cage_ring{
 // coordinate comes from the wrist alone, so every post of a hand straddles the one thickness.
 [Serializable]
 public class cage_post{
+    public string name;         // as the design document calls it; the two posts of a finger ring share one
     public int[] anchor;        // joints the in-plane base is an affine combination of
     public float[] weight;      // their weights, summing to 1
     public Vector3 reach;       // baked in-plane offset from that base
@@ -237,6 +239,7 @@ public static class cage{
     // flesh it wraps (and its rectangle caps the shell), while a joint ring stays on its anchors
     // and takes the cross-section of the flesh crossing that plane.
     class recipe{
+        public string name;
         public int[] anchor;
         public int[] wrap;          // subtree roots whose flesh the ring must enclose
         public Vector3 n, s, d;
@@ -281,20 +284,20 @@ public static class cage{
         // torso panel there, which is why the arm rings carry the reach and the elbow rings do not.
         // Editable.
         var recipes = new recipe[10];
-        recipes[crown] = new recipe{ anchor = js("Head"), wrap = js("Head"), n = up, s = side, d = depth, terminal = true, front = 0.1f };
-        recipes[arm_hi] = new recipe{ anchor = js("LeftArm"), wrap = js("LeftShoulder"), n = side, s = up, d = depth, terminal = false, front = 0.2f, back = 0.1f, hi = 0.05f, outward = 0.05f };
-        recipes[elbow_hi] = new recipe{ anchor = js("LeftForeArm"), wrap = js("LeftArm"), n = side, s = up, d = depth, terminal = false, hi = 0.05f };
+        recipes[crown] = new recipe{ name = "crown", anchor = js("Head"), wrap = js("Head"), n = up, s = side, d = depth, terminal = true, front = 0.1f };
+        recipes[arm_hi] = new recipe{ name = "L arm", anchor = js("LeftArm"), wrap = js("LeftShoulder"), n = side, s = up, d = depth, terminal = false, front = 0.2f, back = 0.1f, hi = 0.05f, outward = 0.05f };
+        recipes[elbow_hi] = new recipe{ name = "L elbow", anchor = js("LeftForeArm"), wrap = js("LeftArm"), n = side, s = up, d = depth, terminal = false, hi = 0.05f };
         // The wrist rings hand the arms over to the hands, which measure them: their extents are
         // overwritten below, since both need flesh windows the generic measure cannot express.
-        recipes[wrist_hi] = new recipe{ anchor = js("LeftHand"), wrap = js("LeftHand"), n = side, s = up, d = depth, terminal = false };
-        recipes[arm_lo] = new recipe{ anchor = js("RightArm"), wrap = js("RightShoulder"), n = -side, s = up, d = depth, terminal = false, front = 0.2f, back = 0.1f, hi = 0.05f, outward = 0.05f };
-        recipes[elbow_lo] = new recipe{ anchor = js("RightForeArm"), wrap = js("RightArm"), n = -side, s = up, d = depth, terminal = false, hi = 0.05f };
-        recipes[wrist_lo] = new recipe{ anchor = js("RightHand"), wrap = js("RightHand"), n = -side, s = up, d = depth, terminal = false };
+        recipes[wrist_hi] = new recipe{ name = "L wrist", anchor = js("LeftHand"), wrap = js("LeftHand"), n = side, s = up, d = depth, terminal = false };
+        recipes[arm_lo] = new recipe{ name = "R arm", anchor = js("RightArm"), wrap = js("RightShoulder"), n = -side, s = up, d = depth, terminal = false, front = 0.2f, back = 0.1f, hi = 0.05f, outward = 0.05f };
+        recipes[elbow_lo] = new recipe{ name = "R elbow", anchor = js("RightForeArm"), wrap = js("RightArm"), n = -side, s = up, d = depth, terminal = false, hi = 0.05f };
+        recipes[wrist_lo] = new recipe{ name = "R wrist", anchor = js("RightHand"), wrap = js("RightHand"), n = -side, s = up, d = depth, terminal = false };
         // The hip ring stands on the higher of the two hip joints (per side, so each edge follows
         // its own), and wraps whatever crosses that height -- pelvis and the top of the thighs.
-        recipes[hip] = new recipe{ anchor = js("LeftUpLeg", "RightUpLeg"), wrap = js("Hips"), n = up, s = side, d = depth, terminal = false };
-        recipes[knee] = new recipe{ anchor = js("LeftLeg", "RightLeg"), wrap = js("LeftUpLeg", "RightUpLeg"), n = -up, s = side, d = depth, terminal = false, back = 0.1f };
-        recipes[sole] = new recipe{ anchor = js("LeftFoot", "LeftToeBase", "RightFoot", "RightToeBase"), wrap = js("LeftFoot", "RightFoot"), n = -up, s = side, d = depth, terminal = true };
+        recipes[hip] = new recipe{ name = "hip", anchor = js("LeftUpLeg", "RightUpLeg"), wrap = js("Hips"), n = up, s = side, d = depth, terminal = false };
+        recipes[knee] = new recipe{ name = "knee", anchor = js("LeftLeg", "RightLeg"), wrap = js("LeftUpLeg", "RightUpLeg"), n = -up, s = side, d = depth, terminal = false, back = 0.1f };
+        recipes[sole] = new recipe{ name = "sole", anchor = js("LeftFoot", "LeftToeBase", "RightFoot", "RightToeBase"), wrap = js("LeftFoot", "RightFoot"), n = -up, s = side, d = depth, terminal = true };
 
         // Widen a measured span by the margin, about its middle.
         static (float lo, float hi) inflate(float lo, float hi){
@@ -327,6 +330,7 @@ public static class cage{
             var lo = r.anchor.Where(j => Vector3.Dot(rest[j], r.s) <= mid).ToArray();
 
             return new cage_ring{
+                name = r.name,
                 anchor_hi = hi,
                 anchor_lo = lo,
                 n = r.n,
@@ -353,8 +357,9 @@ public static class cage{
 
         // One hand, past its wrist ring. n points out along the arm, s runs from the thumb (+) to
         // the pinky (-), and d is the plate -- the back of the hand and the palm. mirror flips the
-        // trace for the hand whose frame comes out left handed against the ring frames.
-        void hand(string prefix, int slot, Vector3 n, bool mirror){
+        // trace for the hand whose frame comes out left handed against the ring frames. tag is the
+        // side as the design document abbreviates it, prefixed to every name of this hand.
+        void hand(string prefix, string tag, int slot, Vector3 n, bool mirror){
             var s = depth;
             var d = up;
             var wrist = index[prefix];
@@ -365,9 +370,9 @@ public static class cage{
             var (plate_lo, plate_hi) = inflate(skin.Min(p => Vector3.Dot(p, d)), skin.Max(p => Vector3.Dot(p, d)));
             var seat = Vector3.Dot(rest[wrist], d);
 
-            int add(int[] anchor, float[] weight, Vector3 reach){
+            int add(string name, int[] anchor, float[] weight, Vector3 reach){
                 posts.Add(new cage_post{
-                    anchor = anchor, weight = weight, reach = reach,
+                    name = name, anchor = anchor, weight = weight, reach = reach,
                     center = wrist, d = d, d_lo = plate_lo - seat, d_hi = plate_hi - seat,
                 });
                 return posts.Count - 1;
@@ -398,16 +403,16 @@ public static class cage{
             var pinky = index[prefix + "Pinky1"];
 
             var cp = new int[6];
-            cp[0] = add(new[]{ thumb }, new[]{ 1f }, s * (wide_hi - Vector3.Dot(rest[thumb], s)));
+            cp[0] = add($"{tag} thumb out", new[]{ thumb }, new[]{ 1f }, s * (wide_hi - Vector3.Dot(rest[thumb], s)));
             for(var f = 0; f < 4; f++){
                 // The thumb branches off at its own second joint, the rest at their roots.
                 var a = f == 0 ? thumb : index[prefix + fingers[f] + "1"];
                 var b = index[prefix + fingers[f + 1] + "1"];
                 var span = (rest[a] + rest[b]) * 0.5f - rest[wrist];
                 var away = (span - d * Vector3.Dot(span, d)).normalized;
-                cp[f + 1] = add(new[]{ a, b }, new[]{ 0.5f, 0.5f }, away * (valley_reach / scale));
+                cp[f + 1] = add($"{tag} {fingers[f].ToLower()}|{fingers[f + 1].ToLower()}", new[]{ a, b }, new[]{ 0.5f, 0.5f }, away * (valley_reach / scale));
             }
-            cp[5] = add(new[]{ pinky }, new[]{ 1f }, s * (wide_lo - Vector3.Dot(rest[pinky], s)));
+            cp[5] = add($"{tag} pinky out", new[]{ pinky }, new[]{ 1f }, s * (wide_lo - Vector3.Dot(rest[pinky], s)));
 
             // Rings up one finger, past the branch ring it shares with its neighbours: one on every
             // joint out from the second, then one more on a virtual end bone, since the rig stops at
@@ -439,8 +444,9 @@ public static class cage{
                     // following that phalanx when the phalanx is lengthened.
                     var anchor = e.past > 0f ? new[]{ e.j, parent[e.j] } : new[]{ e.j };
                     var weight = e.past > 0f ? new[]{ 1f + e.past, -e.past } : new[]{ 1f };
-                    return (hi: add(anchor, weight, perp * (r_hi - at + extra.hi / scale)),
-                            lo: add(anchor, weight, perp * (r_lo - at - extra.lo / scale)));
+                    var name = $"{tag} {fingers[f].ToLower()} {i + 2}";
+                    return (hi: add(name, anchor, weight, perp * (r_hi - at + extra.hi / scale)),
+                            lo: add(name, anchor, weight, perp * (r_lo - at - extra.lo / scale)));
                 }).ToArray();
             }
 
@@ -477,8 +483,8 @@ public static class cage{
 
         plates.AddRange(panels.Select(p => p.Select(ends).ToArray()));
         walls.AddRange(perimeter.Select(c => c.Select(ends).ToArray()));
-        hand("LeftHand", wrist_hi, side, true);
-        hand("RightHand", wrist_lo, -side, false);
+        hand("LeftHand", "L", wrist_hi, side, true);
+        hand("RightHand", "R", wrist_lo, -side, false);
 
         var k = new cage_constants{
             joint_name = bones.Select(t => t.name).ToArray(),
@@ -678,6 +684,39 @@ public static class cage{
             }
         }
         return hit.ToList();
+    }
+
+    // Debug view: the vertices behind each name the constants carry, ring corners and post ends
+    // alike. The two posts of a finger ring share a name, so a finger ring reads as one group too.
+    public static IEnumerable<(string name, int[] verts)> named(cage_constants k){
+        return k.rings.SelectMany((r, i) => Enumerable.Range(i * 4, 4).Select(v => (r.name, v)))
+            .Concat(k.posts.SelectMany((p, i) => Enumerable.Range(k.rings.Length * 4 + i * 2, 2).Select(v => (p.name, v))))
+            .GroupBy(e => e.name, e => e.v)
+            .Select(g => (g.Key, g.ToArray()));
+    }
+
+    // Debug view: which joint places what, as a line from the joint center to the feature it
+    // places -- each silhouette edge of a ring by its own anchors, a post group by its center. The
+    // weight is the post's affine weight; a ring on a virtual end bone reads (1+f, -f) on its two.
+    public static IEnumerable<(string name, string joint, float weight, Vector3 from, Vector3 to)> anchors(IReadOnlyDictionary<string, float> lengths, cage_constants k){
+        var jc = joint_centers(lengths, k);
+        var v = control_points(k, jc);
+
+        var rings = k.rings.SelectMany((r, i) => {
+            var hi = (v[i * 4 + hi_front] + v[i * 4 + hi_back]) * 0.5f;
+            var lo = (v[i * 4 + lo_front] + v[i * 4 + lo_back]) * 0.5f;
+            return r.anchor_hi.Select(j => (name: r.name, joint: k.joint_name[j], weight: 1f, from: jc[j], to: hi))
+                .Concat(r.anchor_lo.Select(j => (name: r.name, joint: k.joint_name[j], weight: 1f, from: jc[j], to: lo)));
+        });
+
+        var posts = k.posts.Select((p, i) => (p, i)).GroupBy(e => e.p.name).SelectMany(g => {
+            var ends = g.SelectMany(e => new[]{ v[k.rings.Length * 4 + e.i * 2 + post_hi], v[k.rings.Length * 4 + e.i * 2 + post_lo] }).ToArray();
+            var center = ends.Aggregate((x, y) => x + y) / ends.Length;
+            return g.SelectMany(e => e.p.anchor.Select((j, a) => (j, w: e.p.weight[a]))).Distinct()
+                .Select(e => (name: g.Key, joint: k.joint_name[e.j], weight: e.w, from: jc[e.j], to: center));
+        });
+
+        return rings.Concat(posts);
     }
 
     // Moller-Trumbore: does the ray o + dir * t, t in (0, max], pierce the triangle?

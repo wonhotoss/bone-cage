@@ -256,6 +256,76 @@ public class mapping_tester : MonoBehaviour{
         // Which slider groups are unfolded. Inspector state, so it lives with the inspector.
         readonly Dictionary<string, bool> open = new();
 
+        // Which cage groups are unfolded in the scene view, by name. Inspector state likewise.
+        readonly HashSet<string> unfolded = new();
+
+        // A tag hides once its group is smaller than this on screen, so the body rings read at
+        // full-figure zoom and the finger rings only once the view is on a hand.
+        const float tag_min_px = 24f;
+
+        // Tag backgrounds by kind: a name tag is white (yellow once unfolded), a vertex index cyan
+        // like the cage wire, a placing joint orange.
+        static readonly Color vertex_color = new(0.5f, 0.9f, 1f);
+        static readonly Color joint_color = new(1f, 0.65f, 0.3f);
+
+        // The cage's names as clickable tags in the scene view: the 3D appendix to the design
+        // document. Clicking a tag unfolds that group alone -- its vertex indices, and a line from
+        // every joint that places it -- so the detail never floods the whole cage at once.
+        void OnSceneGUI(){
+            var mapping = target as mapping_tester;
+            if(mapping.constants != null && mapping.cage_view != null && mapping.cage_view.sharedMesh != null){
+                var k = mapping.constants;
+                var to_world = mapping.cage_view.transform.localToWorldMatrix;
+                var verts = mapping.cage_view.sharedMesh.vertices.Select(v => to_world.MultiplyPoint3x4(v)).ToArray();
+
+                // Groups large enough on screen to carry a tag, with where the tag goes.
+                var shown = cage.named(k).Select(g => {
+                    var gui = g.verts.Select(v => HandleUtility.WorldToGUIPoint(verts[v])).ToArray();
+                    var size = new Vector2(gui.Max(p => p.x) - gui.Min(p => p.x), gui.Max(p => p.y) - gui.Min(p => p.y)).magnitude;
+                    var center = gui.Aggregate((a, b) => a + b) / gui.Length;
+                    return (g.name, g.verts, size, center);
+                }).Where(g => g.size >= tag_min_px).ToArray();
+
+                var picked = shown.Where(g => unfolded.Contains(g.name)).ToArray();
+                var lengths = mapping.measure().ToDictionary(b => b.joint, b => b.native_length);
+                var anchors = cage.anchors(lengths, k).Where(a => picked.Any(g => g.name == a.name)).ToArray();
+
+                Handles.color = Color.yellow;
+                foreach(var a in anchors){
+                    Handles.DrawDottedLine(to_world.MultiplyPoint3x4(a.from), to_world.MultiplyPoint3x4(a.to), 4f);
+                }
+
+                // Every tag is a boxed mini label, so it reads over the mesh; the color tells the kind.
+                Handles.BeginGUI();
+                Rect box(Vector2 at, GUIContent content){
+                    var size = EditorStyles.miniButton.CalcSize(content);
+                    return new Rect(at - size * 0.5f, size);
+                }
+                foreach(var g in shown){
+                    var content = new GUIContent(g.name);
+                    GUI.backgroundColor = unfolded.Contains(g.name) ? Color.yellow : Color.white;
+                    if(GUI.Button(box(g.center, content), content, EditorStyles.miniButton)){
+                        if(!unfolded.Remove(g.name)){
+                            unfolded.Add(g.name);
+                        }
+                    }
+                }
+                GUI.backgroundColor = vertex_color;
+                foreach(var v in picked.SelectMany(g => g.verts)){
+                    var content = new GUIContent($"v{v}");
+                    GUI.Label(box(HandleUtility.WorldToGUIPoint(verts[v]), content), content, EditorStyles.miniButton);
+                }
+                // One joint may place both edges of a ring; label it once.
+                GUI.backgroundColor = joint_color;
+                foreach(var j in anchors.Select(a => (a.joint, a.weight, a.from)).Distinct()){
+                    var content = new GUIContent(j.weight == 1f ? j.joint : $"{j.joint} ×{j.weight:0.00}");
+                    GUI.Label(box(HandleUtility.WorldToGUIPoint(to_world.MultiplyPoint3x4(j.from)), content), content, EditorStyles.miniButton);
+                }
+                GUI.backgroundColor = Color.white;
+                Handles.EndGUI();
+            }
+        }
+
         public override void OnInspectorGUI(){
             DrawDefaultInspector();
 
