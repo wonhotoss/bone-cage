@@ -380,11 +380,20 @@ public class mapping_tester : MonoBehaviour{
                 EditorGUILayout.Space();
                 EditorGUILayout.LabelField("cage", EditorStyles.boldLabel);
 
+                // One change check over every tuning slider: whichever moved, the whole tune rebakes.
                 EditorGUI.BeginChangeCheck();
                 var arm_hi = EditorGUILayout.Slider("arm ring hi reach", mapping.tune.arm_hi, -0.05f, 0.1f);
+                var crown_front = EditorGUILayout.Slider("crown ring front reach", mapping.tune.crown_front, -0.05f, 0.1f);
+                var crown_back = EditorGUILayout.Slider("crown ring back reach", mapping.tune.crown_back, -0.05f, 0.1f);
+                var hip_front = EditorGUILayout.Slider("hip ring front reach", mapping.tune.hip_front, -0.05f, 0.1f);
+                var hip_back = EditorGUILayout.Slider("hip ring back reach", mapping.tune.hip_back, -0.05f, 0.1f);
                 if(EditorGUI.EndChangeCheck()){
                     Undo.RecordObject(mapping, "tune cage");
                     mapping.tune.arm_hi = arm_hi;
+                    mapping.tune.crown_front = crown_front;
+                    mapping.tune.crown_back = crown_back;
+                    mapping.tune.hip_front = hip_front;
+                    mapping.tune.hip_back = hip_back;
                     mapping.constants = cage.bake(mapping.source, mapping.tune);
                     mapping.update_cage();
                     tune_pending = true;

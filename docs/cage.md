@@ -30,11 +30,11 @@
 | 측정 창 | **cap**: 감쌀 살 전체. **joint**: 링 평면에서 `slab · max(앵커 뼈 rest 길이)` 이내의 살만. | `measure` |
 | inflate | 잰 구간 `[lo, hi]`를 중앙 기준 `(1 + margin)`배로 부풀림. 모든 측정 구간에 적용. | `inflate` |
 | 링 | 축 정렬 사각형, **정점 4**. 축 `n`(법선, 몸 바깥), `s`(실루엣 축: 앞/뒤 판의 경계 변이 놓이는 방향), `d`(깊이 축: 앞/뒤 판을 가르는 방향). 코너 = (hi/lo 실루엣 쪽) × (front/back 깊이 쪽). | `cage_ring`, `ring_corners` |
-| 기둥(post) | 제어점 하나가 소유하는 **정점 2**(판 축 `d`의 hi/lo). 손 전용. 위치 = 앵커 관절들의 아핀 결합 + 오프셋. | `cage_post`, `post_ends` |
+| 기둥(post) | 제어점 하나가 소유하는 **정점 2**(축 `d`의 hi/lo). 손과 정중선(§3b). 판 내 위치 = 앵커 관절들의 아핀 결합 + 오프셋. `d` 좌표는 링 변과 같은 규칙 — 양끝이 각자의 d 앵커 `max`/`min` + 여유. | `cage_post`, `post_ends` |
 | 판(plate) | 닫힌 제어점 고리를 hi 정점들로 한 번, lo 정점들로 한 번(역순) 채운 면. ladder 삼각화. `[N3]` | `topology`, `strip` |
 | 옆판(wall) | 제어점 사슬. 이웃 쌍마다 쿼드 1(hi–hi–lo–lo). | `topology` |
 | 여유(reach) | 잰 구간 바깥으로 더하는 상수. 링: `front` `back`(깊이 축), `hi`(+s 쪽), `outward`(n 방향 평면 이동). 모두 씬 단위. | `recipe` |
-| 정점 번호 | 링 `i` 코너 `c` → `i·4 + c` (`hi_front 0, hi_back 1, lo_back 2, lo_front 3`). 기둥 `p` 끝 `e` → `rings·4 + p·2 + e` (`hi 0, lo 1`). 기둥 순서 = 생성 순서(왼손 → 오른손, 각 손은 제어점 6 → 엄지…새끼 링). | `cage` 상수 |
+| 정점 번호 | 링 `i` 코너 `c` → `i·4 + c` (`hi_front 0, hi_back 1, lo_back 2, lo_front 3`). 기둥 `p` 끝 `e` → `rings·4 + p·2 + e` (`hi 0, lo 1`). 기둥 순서 = 생성 순서(정중선 4: crown·hip·knee·sole → 왼손 → 오른손, 각 손은 제어점 6 → 엄지…새끼 링). | `cage` 상수 |
 
 ## 2. 전역 상수 — `cage` 의 `const`
 
@@ -51,14 +51,14 @@
 
 | 이름 | 앵커 | 감쌀 살 | n | s | d | 종류 | front | back | hi | outward | 비고 |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| `crown` | Head | Head | +up | side | depth | cap | 0.1 | | | | 정수리 캡 |
-| `L arm` | LeftArm | LeftShoulder | +side | up | depth | joint | 0.2 | 0.1 | 0.05 | 0.05 | 몸통 판과 팔 판의 경계 `[N2]`. `hi`는 튠 중(§7) |
+| `crown` | Head | Head | +up | side | depth | cap | 0 | 0 | | | 정수리 캡. `front`·`back`은 튠 중(§7) — 가슴~배꼽 정중선과 날개뼈가 몸통 판을 뚫음 |
+| `L arm` | LeftArm | LeftShoulder | +side | up | depth | joint | | | 0.05 | 0.05 | 몸통 판과 팔 판의 경계 `[N2]`. `hi`는 튠 중(§7) |
 | `L elbow` | LeftForeArm | LeftArm | +side | up | depth | joint | | | 0.05 | | |
 | `L wrist` | LeftHand | LeftHand | +side | up | depth | joint | | | | | 단면은 손이 덮어씀 §4a |
-| `R arm` | RightArm | RightShoulder | −side | up | depth | joint | 0.2 | 0.1 | 0.05 | 0.05 | `[N2]`. `hi`는 튠 중(§7) |
+| `R arm` | RightArm | RightShoulder | −side | up | depth | joint | | | 0.05 | 0.05 | `[N2]`. `hi`는 튠 중(§7) |
 | `R elbow` | RightForeArm | RightArm | −side | up | depth | joint | | | 0.05 | | |
 | `R wrist` | RightHand | RightHand | −side | up | depth | joint | | | | | §4a |
-| `hip` | LeftUpLeg, RightUpLeg | Hips | +up | side | depth | joint | | | | | 몸통 판과 다리 판의 경계. 변별로 자기 쪽 고관절 `[N1]` |
+| `hip` | LeftUpLeg, RightUpLeg | Hips | +up | side | depth | joint | 0 | 0 | | | 몸통 판과 다리 판의 경계. 변별로 자기 쪽 고관절 `[N1]`. `front`·`back`은 튠 중(§7) |
 | `knee` | LeftLeg, RightLeg | LeftUpLeg, RightUpLeg | −up | side | depth | joint | | 0.1 | | | 양다리 공용 `[N1]` |
 | `sole` | LeftFoot, LeftToeBase, RightFoot, RightToeBase | LeftFoot, RightFoot | −up | side | depth | cap | | | | | 발바닥 캡 `[N1]` |
 
@@ -69,6 +69,19 @@
 `s_hi = hi_s − max(hi앵커·s) + hi`, `s_lo = min(lo앵커·s) − lo_s`,
 `d_hi = hi_d − max(앵커·d) + front`, `d_lo = min(앵커·d) − lo_d + back`.
 
+### 3b. 정중선 기둥 — `midline(slot, anchors…)`
+
+몸을 가로지르는 링(`s = side`)마다 기둥 하나. 앞/뒤 변이 정중선을 지나는 자리에 정점을 남겨 몸통·다리 판을 좌/우 반판으로 가른다 `[N10]`.
+
+| 이름 | 링 | 앵커(가중치) | 비고 |
+|---|---|---|---|
+| `crown mid` | crown | Head (1) | |
+| `hip mid` | hip | LeftUpLeg, RightUpLeg (½, ½) | 가랑이 |
+| `knee mid` | knee | LeftLeg, RightLeg (½, ½) | |
+| `sole mid` | sole | LeftToeBase, RightToeBase (½, ½) | 발바닥 평면을 정하는 앵커 |
+
+**bake 규칙**: `d` = 링의 `d`, d 앵커 = 링의 앵커 전체, `d_lo`/`d_hi` = 링 값 → 두 정점이 링의 앞/뒤 변 위에 놓인다. 판 내 위치 = rest 앞변 중점 − 앵커 평균(오프셋으로 굽음). 현재는 모두 변의 중점이라 **기하 불변**; 어깨 계곡(§9)이 처음으로 변 밖으로 내릴 기둥이다.
+
 ## 4. 손 — `hand(prefix, tag, slot, n, mirror)`
 
 좌우 각각 호출: `("LeftHand", "L", L wrist, +side, mirror)`, `("RightHand", "R", R wrist, −side, 정방향)`. 아래 이름의 `L`은 `R`로도 읽는다.
@@ -78,7 +91,7 @@
 | 항목 | 정의 |
 |---|---|
 | 손 축 | `n` = 팔 바깥(±side), `s` = **depth**(엄지 +, 새끼 −), `d` = **up**(판 축). 팔 링과 프리즘 축이 90° 다르다 `[N4]` |
-| 판 두께 | 손 서브트리 살 전체의 `d` 구간을 inflate. 손의 모든 기둥이 공유. 기둥의 `d` 좌표는 **손목 관절**의 `d` 좌표 + 이 오프셋 |
+| 판 두께 | 손 서브트리 살 전체의 `d` 구간을 inflate. 손의 모든 기둥이 공유. 모든 기둥의 d 앵커 = **손목**(양끝), 여유 = 판 구간 − 손목 좌표 |
 | 손목 링 덮어쓰기 | 실루엣 축(`up`): hi = 판 위, lo = 판 아래 + `wrist_drop`. 깊이 축(`depth`): 손목 평면에서 `rest_len(Middle1)·0.5` 이내 살의 구간을 inflate `[N5]` |
 | 손 폭 | 손 살 전체의 `s` 구간을 inflate → `wide_hi`(엄지 쪽), `wide_lo`(새끼 쪽) |
 
@@ -122,29 +135,32 @@
 
 ## 5. 토폴로지
 
-몸통의 "제어점" = 링의 실루엣 변 `(링, hi/lo)` → 정점 쌍 (front, back). 손의 제어점 = 기둥 → (hi, lo). 손목 사각형은 양쪽이 공유하되 **역할이 바뀐다**: 팔은 앞/뒤 변을 판에, 위/아래 변을 옆판에 쓰고 손은 반대 `[N4]`.
+몸통의 "제어점" = 링의 실루엣 변 `(링, hi/lo)` 또는 정중선 기둥 `(링, mid)` → 정점 쌍 (front, back). 손의 제어점 = 기둥 → (hi, lo). 손목 사각형은 양쪽이 공유하되 **역할이 바뀐다**: 팔은 앞/뒤 변을 판에, 위/아래 변을 옆판에 쓰고 손은 반대 `[N4]`.
 
 ### 5a. 몸통 판 — `panels` (앞판 + 거울 뒷판)
 
 | 판 | 고리 (링·변) |
 |---|---|
-| 몸통 8각형 | crown·hi → L arm·hi → L arm·lo → hip·hi → hip·lo → R arm·lo → R arm·hi → crown·lo |
+| 몸통 왼반판 | crown·mid → crown·hi → L arm·hi → L arm·lo → hip·hi → hip·mid |
+| 몸통 오른반판 | hip·mid → hip·lo → R arm·lo → R arm·hi → crown·lo → crown·mid |
 | 왼 위팔 | L arm·hi → L elbow·hi → L elbow·lo → L arm·lo |
 | 왼 아래팔 | L elbow·hi → L wrist·hi → L wrist·lo → L elbow·lo |
 | 오른 위팔 | R arm·lo → R elbow·lo → R elbow·hi → R arm·hi |
 | 오른 아래팔 | R elbow·lo → R wrist·lo → R wrist·hi → R elbow·hi |
-| 허벅지 | hip·hi → knee·hi → knee·lo → hip·lo |
-| 종아리 | knee·hi → sole·hi → sole·lo → knee·lo |
+| 왼 허벅지 | hip·mid → hip·hi → knee·hi → knee·mid |
+| 오른 허벅지 | knee·mid → knee·lo → hip·lo → hip·mid |
+| 왼 종아리 | knee·mid → knee·hi → sole·hi → sole·mid |
+| 오른 종아리 | sole·mid → sole·lo → knee·lo → knee·mid |
 
 ### 5b. 몸통 옆판 — `perimeter` (사슬 3, 손목에서 끊김)
 
 | 사슬 | 경로 |
 |---|---|
 | 1 | crown·hi → L arm·hi → L elbow·hi → L wrist·hi |
-| 2 | L wrist·lo → L elbow·lo → L arm·lo → hip·hi → knee·hi → sole·hi → **sole·lo** → knee·lo → hip·lo → R arm·lo → R elbow·lo → R wrist·lo |
-| 3 | R wrist·hi → R elbow·hi → R arm·hi → crown·lo → **crown·hi** |
+| 2 | L wrist·lo → L elbow·lo → L arm·lo → hip·hi → knee·hi → sole·hi → **sole·mid → sole·lo** → knee·lo → hip·lo → R arm·lo → R elbow·lo → R wrist·lo |
+| 3 | R wrist·hi → R elbow·hi → R arm·hi → crown·lo → **crown·mid → crown·hi** |
 
-같은 링을 잇는 쌍(sole·hi→sole·lo, crown·lo→crown·hi)이 그 링 자신의 사각형 = **캡**이다.
+같은 링을 따라가는 구간(sole·hi→mid→lo, crown·lo→mid→hi)이 그 링 자신의 사각형(쿼드 2) = **캡**이다.
 
 ### 5c. 손 — `loops`, `outline`
 
@@ -162,7 +178,7 @@
 
 - 모든 방향 간선이 정확히 한 번 나타나고 그 반대 간선이 존재 → **닫힘 + 일관된 방향**. `Debug.Assert`로 bake마다 검사.
 - 부호 있는 부피가 음수면 전체 winding 반전 → 법선이 바깥 `[N7]`.
-- 결과: **176 정점 / 348 삼각형**, Euler = 2. (링 10×4 + 손 2×(제어점 6 + 엄지 2링·2 + 손가락 4×3링·2)×2)
+- 결과: **184 정점 / 364 삼각형**, Euler = 2. (링 10×4 + 정중선 4×2 + 손 2×(제어점 6 + 엄지 2링·2 + 손가락 4×3링·2)×2)
 
 ## 6. 런타임 재배치 — `points(lengths, k)`
 
@@ -174,7 +190,7 @@
 깊이는 양쪽 앵커 전체에서 `lo_d = d·(min(앵커·d) − d_lo)`, `hi_d = d·(max(앵커·d) + d_hi)`.
 코너 = plane + edge + 깊이. 좌우 변이 독립이라 공용 링은 기울 수 있고, 깊이가 공유라 네 점은 항상 한 평면 `[N1]`.
 
-**기둥** (`post_ends`): `at = Σ weight·jc[anchor] + reach`를 판 평면에 투영, `d` 좌표는 `jc[손목]·d + d_lo/d_hi`.
+**기둥** (`post_ends`): `at = Σ weight·jc[anchor] + reach`를 `d`에 직교 투영, `d` 좌표는 `max(d_hi앵커·d) + d_hi` / `min(d_lo앵커·d) − d_lo` (손: 양쪽 다 손목, 정중선: 링의 앵커).
 
 ## 7. 검증·디버그 — `mapping_tester`
 
@@ -186,25 +202,26 @@
 | `check containment` | 소스 지오메트리를 타깃 본에 LBS → 현재 케이지에 대해 **광선 패리티** 판정. 바깥 정점을 빨간 큐브로. rest에서만 의미 있음. |
 | `check self-collision` | 정점을 공유하지 않는 삼각형 쌍의 관통 검출, 빨간 외곽선. 손가락 길이를 크게 바꾼 뒤 먼저 볼 것. |
 | `rebuild cage` | 재bake + 케이지 갱신 + 재bind. 이 문서의 상수를 바꾸면 누른다. |
-| 튠 슬라이더 (`cage_tune`) | 아직 확정 안 된 §3 값을 인스펙터에서 찾는 임시 편집기. 현재: arm 링 `hi`(기본 0.05, 범위 −0.05..0.1). 드래그 중엔 재bake + 케이지 갱신만(와이어가 바로 따라옴), 놓으면 재bind + deform. 값이 정해지면 표와 recipe로 옮기고 슬라이더는 지운다. |
+| 튠 슬라이더 (`cage_tune`) | 아직 확정 안 된 §3 값을 인스펙터에서 찾는 임시 편집기. 현재: arm 링 `hi`(기본 0.05), crown·hip 링 `front`·`back`(0) — 범위 모두 −0.05..0.1. 드래그 중엔 재bake + 케이지 갱신만(와이어가 바로 따라옴), 놓으면 재bind + deform. 값이 정해지면 표와 recipe로 옮기고 슬라이더는 지운다. |
 | import 시 | `bake` → `bind` → 케이지 자식 생성 → `update_cage`. FBX는 Read/Write 활성 필요. |
 
 ## 8. 설계 노트
 
 - **[N1] 공용 링의 변은 각자의 앵커로.** 두 변이 한 평면(`n`으로 전체 최댓값)을 공유하면 한쪽 다리만 **줄일** 때 링이 반대쪽 무릎에 붙잡혀 따라오지 않는다(늘일 때만 따라옴). 변을 갈라 두면 링이 기울면서 양다리를 추적하고 포함도 유지한다. 대가는 비대칭 편집 시 축 정렬이 풀리는 것 — 깊이 범위는 공유라 네 점은 한 평면에 남는다. 단일 사지 링은 같은 앵커가 양쪽에 들어가 축 정렬 그대로.
-- **[N2] 여유는 그 자리에서 몸통 판을 경계 짓는 링에.** 얼굴·가슴·배·어깨는 링 자신의 살 측정에 안 들어오므로 여유로 덮는다. 어깨·고관절 링이 들어오면서 몸통 판의 변이 팔꿈치·무릎에서 어깨·고관절로 옮겨갔으므로 가슴·어깨 여유도 팔꿈치 링에서 arm 링으로 옮겼다. 팔꿈치 링에 남기면 팔 판만 앞으로 20cm 부푼다.
+- **[N2] 여유는 그 자리에서 몸통 판을 경계 짓는 링에.** 얼굴·가슴·배·어깨는 링 자신의 살 측정에 안 들어오므로 여유로 덮는다. 어깨·고관절 링이 들어오면서 몸통 판의 변이 팔꿈치·무릎에서 어깨·고관절로 옮겨갔으므로 가슴·어깨 여유도 팔꿈치 링에서 arm 링으로 옮겼다. 팔꿈치 링에 남기면 팔 판만 앞으로 20cm 부푼다. **정중선 반판(N10) 이후**에는 몸통 판의 깊이가 crown↔hip 보간이 되어 arm 링의 front/back 여유는 가슴·등을 덮지 못하고 몸통 옆만 크게 부풀렸다. 그래서 arm front 0.2 / back 0.1과 crown front 0.1을 걷어 측정값 + margin으로 되돌렸다. 가슴·등은 crown/hip의 `back` 튠과 앞으로 들어올 어깨 링이 맡는다.
 - **[N3] fan이 아니라 ladder.** 링마다 깊이가 달라 fan은 판 전체를 첫 제어점 기준으로 비튼다 — 몸통 중앙선이 정수리에서 고관절로 직행하며 어깨 링을 건너뛰어 어깨 앞 여유가 가슴에 반영되지 않았다. ladder는 좌우 대칭이고 가슴 띠가 어깨 깊이로 평평하다.
 - **[N4] 손은 링이 아닌 기둥, 프리즘 축은 팔과 90°.** 인접 분기 링이 **제어점을 공유**해야 손등이 한 장의 폴리곤으로 남고, 손가락 링이 자기 뼈에 직교할 수 있다 — 링(정점 4)은 그걸 못 한다. T-pose에서 손바닥이 아래를 보므로 손가락은 `depth`로 벌어지고 두께는 `up`이다. 손목 사각형의 네 변은 팔과 손이 역할을 바꿔 각각 두 번씩 쓰이므로 껍질은 닫힌 채로 남고, 닫힘 assertion이 그것을 검증한다.
 - **[N5] 손목 링만 손 쪽에서 잰다.** 두께는 손 살 전체에서 — 모든 손 기둥이 이 두께를 공유하므로 손목 단면만 보면 손가락이 판을 뚫는다. 폭은 중수골 절반 이내 살에서 — 링 자신의 slab은 아래팔 길이에 비례해 너무 넓어 벌어진 손가락까지 폭으로 잡는다. 단 아래팔이 손보다 훨씬 굵어 그대로 두면 팔 판이 손목에서 손바닥 두께로 잘록해지므로, 손목 링의 **손바닥 쪽 변만** `wrist_drop`만큼 내린다. 손 기둥들은 판을 지키므로 손 전체가 두꺼워지지 않고 손바닥 판이 손목에서 손 쪽으로 비스듬히 올라온다.
 - **[N6] 손가락 링은 자기 뼈에 직교, endbone은 비율.** `s`에 직교시키면 벌어진 손가락이 판을 뚫는다. rig에 endbone이 없으므로 마지막 마디 살이 뼈 방향으로 뻗은 만큼을 rest 길이 비율로 굳혀 `(1+f, −f)` 아핀 결합으로 놓는다 — 그래서 마디를 늘리면 끝 링이 따라 나간다. 현재 케이지에서 **길이에 비례해 굵기·길이가 따라가는 유일한 부위**다(§9 참고).
 - **[N7] winding은 부피로, 왼손은 역추적.** 판 방향은 일관되게 추적하되 어느 쪽이 바깥인지는 rig 축에 달렸으므로 부호 있는 부피로 판정해 필요 시 전체를 뒤집는다. 좌우 손은 프레임 손대칭이 반대라 왼손만 추적 순서를 뒤집는데, 닫힘 assertion이 그 판정을 검증한다.
 - **[N8] 케이지는 길이만의 함수.** 매 프레임 메시를 읽지 않는다. rest 방향이 편집에 불변이므로 FK가 라이브 스켈레톤을 정확히 재현하고, 살 측정은 bake 1회에 상수로 굳는다. 현재 vicon 메시의 rest 케이지가 조건을 만족하면 비율이 바뀐 pose의 케이지도 만족한다고 본다.
+- **[N10] 정중선은 관통한다.** 판 변 위의 정점은 그 변을 공유하는 양쪽 판에 모두 들어가야 닫힘 assertion을 통과한다. 그래서 정중선 정점은 한 구간에만 둘 수 없고 crown → hip → knee → sole을 잇는 사슬이 된다. 반판의 ladder는 정중선 기둥에서 출발해 실루엣 사슬로 돌아오므로 가로대가 세로로 선다(crown·hi–hip·hi 현). 정점은 그대로지만 비평면 판의 삼각화가 바뀌므로 가슴·배의 표면 깊이는 달라진다 — 팔 링 깊이의 가로 띠가 사라지고 crown↔hip 깊이의 보간이 된다(N3의 "가슴 띠"는 어깨 링이 들어오면 그 링의 여유가 맡는다). 한쪽 편집은 그쪽 반판만 움직이지만 MVC 가중치는 전역이라 비국소성은 완화될 뿐 사라지지 않는다.
 - **[N9] cardinal 스냅과 발가락 부호.** rig root 로컬은 월드 정렬이 아니므로 스켈레톤에서 축을 유도하되 cardinal로 스냅해 링을 축 정렬로 유지한다. 외적은 깊이 축만 정하고 앞뒤는 못 정하므로 발가락 방향으로 부호를 정한다.
 
 ## 9. 미결
 
 - **두께 driver — "키가 크면 두꺼워진다".** 현재 단면은 rest 살 측정값 + 절대 여유이고 앵커 spread만 길이를 따른다. 단일 사지 링(팔꿈치·손목)은 spread가 0이라 전신을 1.2배 늘여도 팔 굵기가 그대로다. 링마다 단면을 구동하는 뼈(또는 전신 척도)를 선언하는 열이 필요하다: `단면 = rest 단면 × f(driver 길이 / rest)`. §4c endbone이 이 형태의 선례.
-- **몸통 정중선 정점.** MVC의 음수 가중치(겨드랑이·가랑이 오목부)로 한쪽 편집이 반대편에 새는 비국소성. 정중선 제어점을 더해 케이지 쪽에서 완화할 예정.
+- **어깨 계곡과 목 링.** 목이 몸통에 들어오는 입구를 어깨 링(n=up, 앵커 LeftArm·RightArm)과 Neck에 앵커한 정중선 기둥으로 V 계곡(승모근 능선 – 쇄골 중심)으로 만들고 위에 목 링을 얹는다. arm 링에 몰린 front 0.2 / back 0.1 / hi 여유를 어깨 링으로 재배분. 정중선 기둥(§3b)은 그 준비 단계.
 - **포함률.** 이 정도로 조악한 몸통 케이지는 어깨·배·엉덩이·팔 위아래가 판을 뚫는다. 의도된 1단계 상태이며 `check containment`가 양을 보여준다. 필요 시 링 추가(어깨·골반·가슴)로 조인다 — 토폴로지 표만 늘리면 되고 assertion이 오추적을 막는다.
 - **자기겹침 스윕 테스트.** 실제로 지원할 길이 범위가 정해진 뒤, 그 범위의 극단·조합에 대해 `self_overlaps`를 자동화한다.
-- **bind 비용.** 제어점 40 → 176으로 늘면서 MVC bind가 그만큼 무거워졌다(import 1회). Green/Somigliana로 갈 때 먼저 부딪히는 벽 → [cage-deformation-plan.md](cage-deformation-plan.md).
+- **bind 비용.** 제어점 40 → 184로 늘면서 MVC bind가 그만큼 무거워졌다(import 1회). Green/Somigliana로 갈 때 먼저 부딪히는 벽 → [cage-deformation-plan.md](cage-deformation-plan.md).

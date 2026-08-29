@@ -7,10 +7,11 @@ using UnityEngine;
 //
 // The body is deliberately coarse: ten axis-aligned rectangular rings -- crown, two arms, two
 // elbows, two wrists, one across both hips, one across both knees, one across both soles -- whose
-// corners are stitched into flat panels. A front and back silhouette (torso, two arms, legs) plus
-// one quad per silhouette edge closes it; two of those quads are the crown and sole rings
-// themselves, capping the shell there. Past each wrist the hand is resolved finger by finger, out
-// of posts rather than rings (see cage_post): 176 vertices, 348 triangles in all.
+// corners are stitched into flat panels. The rings across the body leave one post on the midline
+// (see cage_post), so the torso and leg panels come as a left and a right half. A front and back
+// silhouette (torso, two arms, legs) plus one quad per silhouette edge closes it; the quads along
+// the crown and sole rings themselves cap the shell there. Past each wrist the hand is resolved
+// finger by finger, out of posts rather than rings: 184 vertices, 364 triangles in all.
 //
 // bake() (editor) reads the rest mesh + skeleton once and distils everything the generator
 // needs into cage_constants: per-joint FK data, per-ring placement, and the fixed topology.
@@ -40,24 +41,28 @@ public class cage_ring{
     public float d_lo, d_hi;
 }
 
-// A post is the pair of vertices one hand control point owns, spanning the palm's thickness. The
-// hand needs this weaker unit than a ring because its branch rings meet at shared control points --
-// the back of the hand has to stay a single polygon -- and because a finger ring straddles its own
-// bone rather than a cardinal axis.
+// A post is the pair of vertices one control point owns, along one axis d. The hand needs this
+// weaker unit than a ring because its branch rings meet at shared control points -- the back of the
+// hand has to stay a single polygon -- and because a finger ring straddles its own bone rather than
+// a cardinal axis. The body uses it for the midline: the vertex a ring's front and back edges leave
+// where they cross the middle, so the panels either side of it stay two halves.
 //
 // The in-plane position is an affine combination of joint centers plus a baked offset: one joint
-// for a finger ring, two halves for a valley between fingers, and (1+f, -f) to reach a virtual end
-// bone past the last phalanx, which is how that ring follows the phalanx it extends. The plate
-// coordinate comes from the wrist alone, so every post of a hand straddles the one thickness.
+// for a finger ring, two halves for a valley between fingers or for the middle of a shared ring, and
+// (1+f, -f) to reach a virtual end bone past the last phalanx, which is how that ring follows the
+// phalanx it extends. Along d the two ends are placed like a ring's edges, each off its own anchors:
+// the wrist alone for a hand, so every post of a hand straddles the one thickness; the ring's own
+// anchors for a midline post, so it stays on the ring's edges however those move.
 [Serializable]
 public class cage_post{
     public string name;         // as the design document calls it; the two posts of a finger ring share one
     public int[] anchor;        // joints the in-plane base is an affine combination of
     public float[] weight;      // their weights, summing to 1
     public Vector3 reach;       // baked in-plane offset from that base
-    public int center;          // the wrist; its plate coordinate is what the two vertices straddle
-    public Vector3 d;           // plate axis
-    public float d_lo, d_hi;    // the hand's one thickness, as offsets from that wrist coordinate
+    public Vector3 d;           // the axis the two vertices lie along
+    public int[] d_lo_anchor;   // joints placing the -d end: it sits d_lo below the lowest of them along d
+    public int[] d_hi_anchor;   // joints placing the +d end: d_hi above the highest
+    public float d_lo, d_hi;
 }
 
 [Serializable]
@@ -69,7 +74,7 @@ public class cage_constants{
     public float[] joint_rest_len;  // native rest distance parent->joint
 
     public cage_ring[] rings;
-    public cage_post[] posts;       // the hands, after the ring corners in the vertex order
+    public cage_post[] posts;       // the midline, then the hands, after the ring corners in the vertex order
     public int[] tris;              // indices into 4*rings.Length + 2*posts.Length vertices
 }
 
@@ -80,6 +85,10 @@ public class cage_constants{
 [Serializable]
 public class cage_tune{
     public float arm_hi = 0.05f;    // hi reach of both arm rings: how far their top edge clears the shoulder
+    public float crown_front = 0f;  // depth reach of the crown ring: the chest and belly (front) and the
+    public float crown_back = 0f;   // shoulder blades (back) sit under the torso panel these two rings span
+    public float hip_front = 0f;    // the same on the hip ring
+    public float hip_back = 0f;
 }
 #endif
 
@@ -159,43 +168,49 @@ public static class cage{
         return verts;
     }
 
-    // A post sits where its anchors put it in the plate plane, and straddles the plate itself at
-    // the wrist's own coordinate -- not its own, so the whole hand keeps one flat back and palm.
+    // A post sits where its anchors put it across d, and each end along d at its own anchors'
+    // coordinate -- not the post's own: a hand's posts all read the wrist, so the hand keeps one flat
+    // back and palm, and a midline post reads its ring's anchors, so it stays on the ring's edges.
     static Vector3[] post_ends(cage_constants k, Vector3[] jc){
         var verts = new Vector3[k.posts.Length * 2];
         for(var i = 0; i < k.posts.Length; i++){
             var p = k.posts[i];
             var at = p.anchor.Select((j, a) => jc[j] * p.weight[a]).Aggregate((x, y) => x + y) + p.reach;
             var flat = at - p.d * Vector3.Dot(at, p.d);
-            var seat = Vector3.Dot(jc[p.center], p.d);
 
-            verts[i * 2 + post_hi] = flat + p.d * (seat + p.d_hi);
-            verts[i * 2 + post_lo] = flat + p.d * (seat + p.d_lo);
+            verts[i * 2 + post_hi] = flat + p.d * (p.d_hi_anchor.Max(j => Vector3.Dot(jc[j], p.d)) + p.d_hi);
+            verts[i * 2 + post_lo] = flat + p.d * (p.d_lo_anchor.Min(j => Vector3.Dot(jc[j], p.d)) - p.d_lo);
         }
         return verts;
     }
 
 #if UNITY_EDITOR
-    // Ring slots. The topology tables index these directly. hi/lo name the two sides of a ring's
-    // silhouette axis, so an "hi" limb ring is the one on the +side (character's left). The torso
-    // meets the arms at the arm rings and the legs at the hip ring; the elbow, wrist, knee and sole
-    // rings hang off those.
+    // Ring slots. The topology tables index these directly. The torso meets the arms at the arm
+    // rings and the legs at the hip ring; the elbow, wrist, knee and sole rings hang off those.
     const int crown = 0,
         arm_hi = 1, elbow_hi = 2, wrist_hi = 3,
         arm_lo = 4, elbow_lo = 5, wrist_lo = 6,
         hip = 7, knee = 8, sole = 9;
 
-    // Panel outlines as (ring, silhouette side) pairs, all traced in the same sense. Each is
-    // emitted twice: once on the front corners, once reversed on the back.
-    static readonly (int ring, bool hi)[][] panels = {
-        new[]{ (crown, true), (arm_hi, true), (arm_hi, false), (hip, true),
-               (hip, false), (arm_lo, false), (arm_lo, true), (crown, false) },
-        new[]{ (arm_hi, true), (elbow_hi, true), (elbow_hi, false), (arm_hi, false) },
-        new[]{ (elbow_hi, true), (wrist_hi, true), (wrist_hi, false), (elbow_hi, false) },
-        new[]{ (arm_lo, false), (elbow_lo, false), (elbow_lo, true), (arm_lo, true) },
-        new[]{ (elbow_lo, false), (wrist_lo, false), (wrist_lo, true), (elbow_lo, true) },
-        new[]{ (hip, true), (knee, true), (knee, false), (hip, false) },
-        new[]{ (knee, true), (sole, true), (sole, false), (knee, false) },
+    // A body control point: one silhouette edge of a ring, or the midline post its front and back
+    // edges leave in the middle. hi/lo name the two sides of the silhouette axis, so an "hi" limb
+    // ring is the one on the +side (character's left).
+    enum edge{ hi, lo, mid }
+
+    // Panel outlines as (ring, side) pairs, all traced in the same sense. Each is emitted twice:
+    // once on the front corners, once reversed on the back. The torso and the legs come as two
+    // halves meeting on the midline, so an edit on one side stays on that side's half.
+    static readonly (int ring, edge e)[][] panels = {
+        new[]{ (crown, edge.mid), (crown, edge.hi), (arm_hi, edge.hi), (arm_hi, edge.lo), (hip, edge.hi), (hip, edge.mid) },
+        new[]{ (hip, edge.mid), (hip, edge.lo), (arm_lo, edge.lo), (arm_lo, edge.hi), (crown, edge.lo), (crown, edge.mid) },
+        new[]{ (arm_hi, edge.hi), (elbow_hi, edge.hi), (elbow_hi, edge.lo), (arm_hi, edge.lo) },
+        new[]{ (elbow_hi, edge.hi), (wrist_hi, edge.hi), (wrist_hi, edge.lo), (elbow_hi, edge.lo) },
+        new[]{ (arm_lo, edge.lo), (elbow_lo, edge.lo), (elbow_lo, edge.hi), (arm_lo, edge.hi) },
+        new[]{ (elbow_lo, edge.lo), (wrist_lo, edge.lo), (wrist_lo, edge.hi), (elbow_lo, edge.hi) },
+        new[]{ (hip, edge.mid), (hip, edge.hi), (knee, edge.hi), (knee, edge.mid) },
+        new[]{ (knee, edge.mid), (knee, edge.lo), (hip, edge.lo), (hip, edge.mid) },
+        new[]{ (knee, edge.mid), (knee, edge.hi), (sole, edge.hi), (sole, edge.mid) },
+        new[]{ (sole, edge.mid), (sole, edge.lo), (knee, edge.lo), (knee, edge.mid) },
     };
 
     // The silhouette boundary of those panels, traced in the same sense: every consecutive pair
@@ -203,14 +218,14 @@ public static class cage{
     // wrist ring is where the arm hands over to a hand, whose own panels are the back of the hand
     // and the palm -- so the arm spends its front and back edges on panels and its top and bottom
     // here, and the hand does the opposite. No quad closes across a wrist, which breaks the loop
-    // into three chains. The pairs naming one ring twice are its own rectangle: the shell caps
-    // there, at the crown and the soles.
-    static readonly (int ring, bool hi)[][] perimeter = {
-        new[]{ (crown, true), (arm_hi, true), (elbow_hi, true), (wrist_hi, true) },
-        new[]{ (wrist_hi, false), (elbow_hi, false), (arm_hi, false),
-               (hip, true), (knee, true), (sole, true), (sole, false), (knee, false), (hip, false),
-               (arm_lo, false), (elbow_lo, false), (wrist_lo, false) },
-        new[]{ (wrist_lo, true), (elbow_lo, true), (arm_lo, true), (crown, false), (crown, true) },
+    // into three chains. The runs walking along one ring -- one edge, its midline post, the other
+    // edge -- are its own rectangle in two quads: the shell caps there, at the crown and the soles.
+    static readonly (int ring, edge e)[][] perimeter = {
+        new[]{ (crown, edge.hi), (arm_hi, edge.hi), (elbow_hi, edge.hi), (wrist_hi, edge.hi) },
+        new[]{ (wrist_hi, edge.lo), (elbow_hi, edge.lo), (arm_hi, edge.lo),
+               (hip, edge.hi), (knee, edge.hi), (sole, edge.hi), (sole, edge.mid), (sole, edge.lo), (knee, edge.lo), (hip, edge.lo),
+               (arm_lo, edge.lo), (elbow_lo, edge.lo), (wrist_lo, edge.lo) },
+        new[]{ (wrist_lo, edge.hi), (elbow_lo, edge.hi), (arm_lo, edge.hi), (crown, edge.lo), (crown, edge.mid), (crown, edge.hi) },
     };
 
     // The five fingers, thumb first. A hand's silhouette axis runs from the thumb (+s) to the pinky
@@ -289,23 +304,23 @@ public static class cage{
             return names.Select(n => index[n]).ToArray();
         }
 
-        // The reach fields are what pull the panels out over flesh the rings themselves do not see:
-        // the face, the chest and belly, the shoulders. They belong to whichever ring bounds the
-        // torso panel there, which is why the arm rings carry the reach and the elbow rings do not.
-        // Editable.
+        // The reach fields pull a panel out over flesh the rings themselves do not see, and belong
+        // to whichever ring bounds that panel there. The torso panels split at the midline, so their
+        // depth interpolates crown to hip: the chest and back are the crown and hip rings' business,
+        // and depth reach on the arm rings would only bulge the side of the torso. Editable.
         var recipes = new recipe[10];
-        recipes[crown] = new recipe{ name = "crown", anchor = js("Head"), wrap = js("Head"), n = up, s = side, d = depth, terminal = true, front = 0.1f };
-        recipes[arm_hi] = new recipe{ name = "L arm", anchor = js("LeftArm"), wrap = js("LeftShoulder"), n = side, s = up, d = depth, terminal = false, front = 0.2f, back = 0.1f, hi = tune.arm_hi, outward = 0.05f };
+        recipes[crown] = new recipe{ name = "crown", anchor = js("Head"), wrap = js("Head"), n = up, s = side, d = depth, terminal = true, front = tune.crown_front, back = tune.crown_back };
+        recipes[arm_hi] = new recipe{ name = "L arm", anchor = js("LeftArm"), wrap = js("LeftShoulder"), n = side, s = up, d = depth, terminal = false, hi = tune.arm_hi, outward = 0.05f };
         recipes[elbow_hi] = new recipe{ name = "L elbow", anchor = js("LeftForeArm"), wrap = js("LeftArm"), n = side, s = up, d = depth, terminal = false, hi = 0.05f };
         // The wrist rings hand the arms over to the hands, which measure them: their extents are
         // overwritten below, since both need flesh windows the generic measure cannot express.
         recipes[wrist_hi] = new recipe{ name = "L wrist", anchor = js("LeftHand"), wrap = js("LeftHand"), n = side, s = up, d = depth, terminal = false };
-        recipes[arm_lo] = new recipe{ name = "R arm", anchor = js("RightArm"), wrap = js("RightShoulder"), n = -side, s = up, d = depth, terminal = false, front = 0.2f, back = 0.1f, hi = tune.arm_hi, outward = 0.05f };
+        recipes[arm_lo] = new recipe{ name = "R arm", anchor = js("RightArm"), wrap = js("RightShoulder"), n = -side, s = up, d = depth, terminal = false, hi = tune.arm_hi, outward = 0.05f };
         recipes[elbow_lo] = new recipe{ name = "R elbow", anchor = js("RightForeArm"), wrap = js("RightArm"), n = -side, s = up, d = depth, terminal = false, hi = 0.05f };
         recipes[wrist_lo] = new recipe{ name = "R wrist", anchor = js("RightHand"), wrap = js("RightHand"), n = -side, s = up, d = depth, terminal = false };
         // The hip ring stands on the higher of the two hip joints (per side, so each edge follows
         // its own), and wraps whatever crosses that height -- pelvis and the top of the thighs.
-        recipes[hip] = new recipe{ name = "hip", anchor = js("LeftUpLeg", "RightUpLeg"), wrap = js("Hips"), n = up, s = side, d = depth, terminal = false };
+        recipes[hip] = new recipe{ name = "hip", anchor = js("LeftUpLeg", "RightUpLeg"), wrap = js("Hips"), n = up, s = side, d = depth, terminal = false, front = tune.hip_front, back = tune.hip_back };
         recipes[knee] = new recipe{ name = "knee", anchor = js("LeftLeg", "RightLeg"), wrap = js("LeftUpLeg", "RightUpLeg"), n = -up, s = side, d = depth, terminal = false, back = 0.1f };
         recipes[sole] = new recipe{ name = "sole", anchor = js("LeftFoot", "LeftToeBase", "RightFoot", "RightToeBase"), wrap = js("LeftFoot", "RightFoot"), n = -up, s = side, d = depth, terminal = true };
 
@@ -360,9 +375,43 @@ public static class cage{
         var plates = new List<(int hi, int lo)[]>();
         var walls = new List<(int hi, int lo)[]>();
 
-        // A body post: the vertex pair one silhouette side of a ring owns, front then back.
-        (int hi, int lo) ends((int ring, bool hi) c){
-            return (corner(c, true), corner(c, false));
+        // A post's two vertices, after all the ring corners.
+        (int hi, int lo) pair(int p){
+            var v = rings.Length * 4 + p * 2;
+            return (v + post_hi, v + post_lo);
+        }
+
+        // The midline: on every ring across the body, one post exactly at the midpoint of its front
+        // and back edges, anchored on the mean of the joints that place those edges. Its ends take
+        // the ring's own depth anchors and reach, so they stay on the edges however the ring tilts;
+        // in the plane it is offset from that mean by whatever the rest midpoint is. Sitting on the
+        // edge it changes no geometry, only which half of a panel a vertex belongs to; a valley such
+        // as the neck's will pull one off the edge.
+        var rest_corners = ring_corners(new cage_constants{ rings = rings }, rest);
+        var mids = new Dictionary<int, int>();
+        void midline(int slot, params string[] names){
+            var r = rings[slot];
+            var anchor = js(names);
+            var mean = anchor.Aggregate(Vector3.zero, (a, j) => a + rest[j]) / anchor.Length;
+            var mid = (rest_corners[slot * 4 + hi_front] + rest_corners[slot * 4 + lo_front]) * 0.5f;
+            var depth = r.anchor_hi.Concat(r.anchor_lo).Distinct().ToArray();
+            posts.Add(new cage_post{
+                name = r.name + " mid", anchor = anchor, weight = anchor.Select(_ => 1f / anchor.Length).ToArray(),
+                reach = mid - mean - r.d * Vector3.Dot(mid - mean, r.d),
+                d = r.d, d_lo_anchor = depth, d_hi_anchor = depth, d_lo = r.d_lo, d_hi = r.d_hi,
+            });
+            mids[slot] = posts.Count - 1;
+        }
+        midline(crown, "Head");
+        midline(hip, "LeftUpLeg", "RightUpLeg");
+        midline(knee, "LeftLeg", "RightLeg");
+        // The toes, not the ankles: they are what the sole plane stands on.
+        midline(sole, "LeftToeBase", "RightToeBase");
+
+        // A body control point as a vertex pair, front then back: a ring's silhouette edge, or the
+        // midline post between its two edges.
+        (int hi, int lo) ends((int ring, edge e) c){
+            return c.e == edge.mid ? pair(mids[c.ring]) : (corner(c.ring, c.e, true), corner(c.ring, c.e, false));
         }
 
         // One hand, past its wrist ring. n points out along the arm, s runs from the thumb (+) to
@@ -383,14 +432,9 @@ public static class cage{
             int add(string name, int[] anchor, float[] weight, Vector3 reach){
                 posts.Add(new cage_post{
                     name = name, anchor = anchor, weight = weight, reach = reach,
-                    center = wrist, d = d, d_lo = plate_lo - seat, d_hi = plate_hi - seat,
+                    d = d, d_lo_anchor = new[]{ wrist }, d_hi_anchor = new[]{ wrist }, d_lo = seat - plate_lo, d_hi = plate_hi - seat,
                 });
                 return posts.Count - 1;
-            }
-
-            (int hi, int lo) pair(int p){
-                var v = recipes.Length * 4 + p * 2;
-                return (v + post_hi, v + post_lo);
             }
 
             // The wrist ring takes the hand's plate on its silhouette axis, and on its depth axis
@@ -465,7 +509,7 @@ public static class cage{
             // The wrist ring's own two posts, as the hand reads them: its silhouette sides are the
             // plate, its depth sides the thumb and pinky ends.
             (int hi, int lo) wrist_end(bool front){
-                return (corner((slot, true), front), corner((slot, false), front));
+                return (corner(slot, edge.hi, front), corner(slot, edge.lo, front));
             }
 
             // Out from a control point along one side of a finger and back down the other.
@@ -592,8 +636,9 @@ public static class cage{
         return tris.ToArray();
     }
 
-    static int corner((int ring, bool hi) c, bool front){
-        return c.ring * 4 + (c.hi ? (front ? hi_front : hi_back) : (front ? lo_front : lo_back));
+    static int corner(int ring, edge e, bool front){
+        Debug.Assert(e != edge.mid, "cage: a midline post is not a ring corner");
+        return ring * 4 + (e == edge.hi ? (front ? hi_front : hi_back) : (front ? lo_front : lo_back));
     }
 
     // Triangulate an outline as a ladder between its two halves, preserving the traced sense: each
