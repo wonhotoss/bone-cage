@@ -390,6 +390,10 @@ public class mapping_tester : MonoBehaviour{
                 var arm_hi_back = EditorGUILayout.Slider("arm ring hi back reach", mapping.tune.arm_hi_back, -0.1f, 0.1f);
                 var arm_lo_front = EditorGUILayout.Slider("arm ring lo front reach", mapping.tune.arm_lo_front, -0.1f, 0.1f);
                 var arm_lo_back = EditorGUILayout.Slider("arm ring lo back reach", mapping.tune.arm_lo_back, -0.1f, 0.1f);
+                var head_tilt = EditorGUILayout.Slider("head ring tilt (deg)", mapping.tune.head_tilt, 0f, 45f);
+                var head_offset = EditorGUILayout.Slider("head ring offset", mapping.tune.head_offset, -0.02f, 0.06f);
+                var head_front = EditorGUILayout.Slider("head ring front reach", mapping.tune.head_front, -0.05f, 0.1f);
+                var head_back = EditorGUILayout.Slider("head ring back reach", mapping.tune.head_back, -0.05f, 0.1f);
                 var crown_front = EditorGUILayout.Slider("crown ring front reach", mapping.tune.crown_front, -0.05f, 0.1f);
                 var crown_back = EditorGUILayout.Slider("crown ring back reach", mapping.tune.crown_back, -0.05f, 0.1f);
                 var hip_front = EditorGUILayout.Slider("hip ring front reach", mapping.tune.hip_front, -0.05f, 0.1f);
@@ -404,6 +408,10 @@ public class mapping_tester : MonoBehaviour{
                     mapping.tune.arm_hi_back = arm_hi_back;
                     mapping.tune.arm_lo_front = arm_lo_front;
                     mapping.tune.arm_lo_back = arm_lo_back;
+                    mapping.tune.head_tilt = head_tilt;
+                    mapping.tune.head_offset = head_offset;
+                    mapping.tune.head_front = head_front;
+                    mapping.tune.head_back = head_back;
                     mapping.tune.crown_front = crown_front;
                     mapping.tune.crown_back = crown_back;
                     mapping.tune.hip_front = hip_front;
