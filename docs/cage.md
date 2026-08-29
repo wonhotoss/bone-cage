@@ -52,10 +52,10 @@
 | 이름 | 앵커 | 감쌀 살 | n | s | d | 종류 | front | back | hi | outward | 비고 |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | `crown` | Head | Head | +up | side | depth | cap | 0.1 | | | | 정수리 캡 |
-| `L arm` | LeftArm | LeftShoulder | +side | up | depth | joint | 0.2 | 0.1 | 0.05 | 0.05 | 몸통 판과 팔 판의 경계 `[N2]` |
+| `L arm` | LeftArm | LeftShoulder | +side | up | depth | joint | 0.2 | 0.1 | 0.05 | 0.05 | 몸통 판과 팔 판의 경계 `[N2]`. `hi`는 튠 중(§7) |
 | `L elbow` | LeftForeArm | LeftArm | +side | up | depth | joint | | | 0.05 | | |
 | `L wrist` | LeftHand | LeftHand | +side | up | depth | joint | | | | | 단면은 손이 덮어씀 §4a |
-| `R arm` | RightArm | RightShoulder | −side | up | depth | joint | 0.2 | 0.1 | 0.05 | 0.05 | `[N2]` |
+| `R arm` | RightArm | RightShoulder | −side | up | depth | joint | 0.2 | 0.1 | 0.05 | 0.05 | `[N2]`. `hi`는 튠 중(§7) |
 | `R elbow` | RightForeArm | RightArm | −side | up | depth | joint | | | 0.05 | | |
 | `R wrist` | RightHand | RightHand | −side | up | depth | joint | | | | | §4a |
 | `hip` | LeftUpLeg, RightUpLeg | Hips | +up | side | depth | joint | | | | | 몸통 판과 다리 판의 경계. 변별로 자기 쪽 고관절 `[N1]` |
@@ -186,6 +186,7 @@
 | `check containment` | 소스 지오메트리를 타깃 본에 LBS → 현재 케이지에 대해 **광선 패리티** 판정. 바깥 정점을 빨간 큐브로. rest에서만 의미 있음. |
 | `check self-collision` | 정점을 공유하지 않는 삼각형 쌍의 관통 검출, 빨간 외곽선. 손가락 길이를 크게 바꾼 뒤 먼저 볼 것. |
 | `rebuild cage` | 재bake + 케이지 갱신 + 재bind. 이 문서의 상수를 바꾸면 누른다. |
+| 튠 슬라이더 (`cage_tune`) | 아직 확정 안 된 §3 값을 인스펙터에서 찾는 임시 편집기. 현재: arm 링 `hi`(기본 0.05, 범위 −0.05..0.1). 드래그 중엔 재bake + 케이지 갱신만(와이어가 바로 따라옴), 놓으면 재bind + deform. 값이 정해지면 표와 recipe로 옮기고 슬라이더는 지운다. |
 | import 시 | `bake` → `bind` → 케이지 자식 생성 → `update_cage`. FBX는 Read/Write 활성 필요. |
 
 ## 8. 설계 노트

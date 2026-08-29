@@ -14,6 +14,12 @@ public class mapping_tester : MonoBehaviour{
     [HideInInspector] public cage_constants constants;
     public MeshFilter cage_view;
 
+#if UNITY_EDITOR
+    // Recipe values still being searched for; the inspector's tuning sliders write here and
+    // rebake. Drawn by the inspector's cage section, not the default one.
+    [HideInInspector] public cage_tune tune = new();
+#endif
+
     // Which coordinates the deform button maps the mesh through.
     public cage_coords coords;
 
@@ -130,7 +136,7 @@ public class mapping_tester : MonoBehaviour{
 
 #if UNITY_EDITOR
         // The bind is a product of the bake -- same rest geometry, same editor-only step.
-        constants = cage.bake(source);
+        constants = cage.bake(source, tune);
         bind();
 #endif
         ensure_cage_view();
@@ -259,6 +265,11 @@ public class mapping_tester : MonoBehaviour{
         // Which cage groups are unfolded in the scene view, by name. Inspector state likewise.
         readonly HashSet<string> unfolded = new();
 
+        // A tuning slider has moved and the mesh has not been rebound to the new cage yet. The
+        // rebake and re-place are milliseconds, so the wire follows the drag; the bind is seconds,
+        // so it waits until the slider is let go.
+        bool tune_pending;
+
         // A tag hides once its group is smaller than this on screen, so the body rings read at
         // full-figure zoom and the finger rings only once the view is on a hand.
         const float tag_min_px = 24f;
@@ -369,8 +380,24 @@ public class mapping_tester : MonoBehaviour{
                 EditorGUILayout.Space();
                 EditorGUILayout.LabelField("cage", EditorStyles.boldLabel);
 
+                EditorGUI.BeginChangeCheck();
+                var arm_hi = EditorGUILayout.Slider("arm ring hi reach", mapping.tune.arm_hi, -0.05f, 0.1f);
+                if(EditorGUI.EndChangeCheck()){
+                    Undo.RecordObject(mapping, "tune cage");
+                    mapping.tune.arm_hi = arm_hi;
+                    mapping.constants = cage.bake(mapping.source, mapping.tune);
+                    mapping.update_cage();
+                    tune_pending = true;
+                }
+                // Typing into the slider's field holds no control, so wait for that to end too.
+                if(tune_pending && GUIUtility.hotControl == 0 && !EditorGUIUtility.editingTextField){
+                    tune_pending = false;
+                    mapping.bind();
+                    mapping.update_body();
+                }
+
                 if(GUILayout.Button("rebuild cage")){
-                    mapping.constants = cage.bake(mapping.source);
+                    mapping.constants = cage.bake(mapping.source, mapping.tune);
                     mapping.update_cage();
                     mapping.bind();
                 }

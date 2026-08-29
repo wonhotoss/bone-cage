@@ -73,6 +73,16 @@ public class cage_constants{
     public int[] tris;              // indices into 4*rings.Length + 2*posts.Length vertices
 }
 
+#if UNITY_EDITOR
+// Recipe values still being found. The inspector's tuning sliders write here and rebake, so the
+// cage follows while the value is searched for; once settled, a value moves into the recipe table
+// in bake() and into the design document, and its slider goes. Scene units, like the recipes.
+[Serializable]
+public class cage_tune{
+    public float arm_hi = 0.05f;    // hi reach of both arm rings: how far their top edge clears the shoulder
+}
+#endif
+
 public static class cage{
     // Corner layout inside a ring: the s axis gives the silhouette side (hi/lo), the d axis the
     // front/back side. Vertex index is ring * 4 + corner.
@@ -252,7 +262,7 @@ public static class cage{
                                     // pushed out along a limb keeps the girth it had there.
     }
 
-    public static cage_constants bake(SkinnedMeshRenderer source){
+    public static cage_constants bake(SkinnedMeshRenderer source, cage_tune tune){
         var root = source.rootBone;
         var bones = root.GetComponentsInChildren<Transform>(true);
         var index = bones.Select((t, i) => (t, i)).ToDictionary(e => e.t.name, e => e.i);
@@ -285,12 +295,12 @@ public static class cage{
         // Editable.
         var recipes = new recipe[10];
         recipes[crown] = new recipe{ name = "crown", anchor = js("Head"), wrap = js("Head"), n = up, s = side, d = depth, terminal = true, front = 0.1f };
-        recipes[arm_hi] = new recipe{ name = "L arm", anchor = js("LeftArm"), wrap = js("LeftShoulder"), n = side, s = up, d = depth, terminal = false, front = 0.2f, back = 0.1f, hi = 0.05f, outward = 0.05f };
+        recipes[arm_hi] = new recipe{ name = "L arm", anchor = js("LeftArm"), wrap = js("LeftShoulder"), n = side, s = up, d = depth, terminal = false, front = 0.2f, back = 0.1f, hi = tune.arm_hi, outward = 0.05f };
         recipes[elbow_hi] = new recipe{ name = "L elbow", anchor = js("LeftForeArm"), wrap = js("LeftArm"), n = side, s = up, d = depth, terminal = false, hi = 0.05f };
         // The wrist rings hand the arms over to the hands, which measure them: their extents are
         // overwritten below, since both need flesh windows the generic measure cannot express.
         recipes[wrist_hi] = new recipe{ name = "L wrist", anchor = js("LeftHand"), wrap = js("LeftHand"), n = side, s = up, d = depth, terminal = false };
-        recipes[arm_lo] = new recipe{ name = "R arm", anchor = js("RightArm"), wrap = js("RightShoulder"), n = -side, s = up, d = depth, terminal = false, front = 0.2f, back = 0.1f, hi = 0.05f, outward = 0.05f };
+        recipes[arm_lo] = new recipe{ name = "R arm", anchor = js("RightArm"), wrap = js("RightShoulder"), n = -side, s = up, d = depth, terminal = false, front = 0.2f, back = 0.1f, hi = tune.arm_hi, outward = 0.05f };
         recipes[elbow_lo] = new recipe{ name = "R elbow", anchor = js("RightForeArm"), wrap = js("RightArm"), n = -side, s = up, d = depth, terminal = false, hi = 0.05f };
         recipes[wrist_lo] = new recipe{ name = "R wrist", anchor = js("RightHand"), wrap = js("RightHand"), n = -side, s = up, d = depth, terminal = false };
         // The hip ring stands on the higher of the two hip joints (per side, so each edge follows
