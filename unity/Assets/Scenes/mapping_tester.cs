@@ -383,6 +383,13 @@ public class mapping_tester : MonoBehaviour{
                 // One change check over every tuning slider: whichever moved, the whole tune rebakes.
                 EditorGUI.BeginChangeCheck();
                 var arm_hi = EditorGUILayout.Slider("arm ring hi reach", mapping.tune.arm_hi, -0.05f, 0.1f);
+                var arm_outward_hi = EditorGUILayout.Slider("arm ring hi outward", mapping.tune.arm_outward_hi, -0.15f, 0.1f);
+                var arm_lo = EditorGUILayout.Slider("arm ring lo reach", mapping.tune.arm_lo, -0.1f, 0.1f);
+                var arm_outward_lo = EditorGUILayout.Slider("arm ring lo outward", mapping.tune.arm_outward_lo, -0.15f, 0.1f);
+                var arm_hi_front = EditorGUILayout.Slider("arm ring hi front reach", mapping.tune.arm_hi_front, -0.1f, 0.1f);
+                var arm_hi_back = EditorGUILayout.Slider("arm ring hi back reach", mapping.tune.arm_hi_back, -0.1f, 0.1f);
+                var arm_lo_front = EditorGUILayout.Slider("arm ring lo front reach", mapping.tune.arm_lo_front, -0.1f, 0.1f);
+                var arm_lo_back = EditorGUILayout.Slider("arm ring lo back reach", mapping.tune.arm_lo_back, -0.1f, 0.1f);
                 var crown_front = EditorGUILayout.Slider("crown ring front reach", mapping.tune.crown_front, -0.05f, 0.1f);
                 var crown_back = EditorGUILayout.Slider("crown ring back reach", mapping.tune.crown_back, -0.05f, 0.1f);
                 var hip_front = EditorGUILayout.Slider("hip ring front reach", mapping.tune.hip_front, -0.05f, 0.1f);
@@ -390,6 +397,13 @@ public class mapping_tester : MonoBehaviour{
                 if(EditorGUI.EndChangeCheck()){
                     Undo.RecordObject(mapping, "tune cage");
                     mapping.tune.arm_hi = arm_hi;
+                    mapping.tune.arm_outward_hi = arm_outward_hi;
+                    mapping.tune.arm_lo = arm_lo;
+                    mapping.tune.arm_outward_lo = arm_outward_lo;
+                    mapping.tune.arm_hi_front = arm_hi_front;
+                    mapping.tune.arm_hi_back = arm_hi_back;
+                    mapping.tune.arm_lo_front = arm_lo_front;
+                    mapping.tune.arm_lo_back = arm_lo_back;
                     mapping.tune.crown_front = crown_front;
                     mapping.tune.crown_back = crown_back;
                     mapping.tune.hip_front = hip_front;
