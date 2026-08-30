@@ -66,7 +66,7 @@
 
 ## 2026-08-30 — 골반에서 발끝까지
 
-커밋: `1eee5a8` → `a982e22` → `954124f`(씬) → `53f226d`
+커밋: `1eee5a8` → `a982e22` → `954124f`(씬) → `53f226d` → `bd5a6e7`
 
 ### 시작 상태
 - 링 11 + 정중선 기둥 7 + 손, 194 정점 / 384 삼각형. 쇄골~머리 완료.
@@ -99,6 +99,12 @@
 - 튠 `spine1/2 front/back`(초기 0). 232 정점 / 460 삼각형. 슬롯 번호가 바뀌어 `rebuild cage` 필수.
 - 확인할 것: Spine2 관절이 겨드랑이(arm·lo ≈ Spine3 높이) 아래인지 — 위라면 spine2·hi–arm·lo 옆판이 접힌다.
 
+**5. 어깨–상완 분리 (`bd5a6e7`)** — arm 링 윗변이 승모근 위로 들어간 뒤(N11) 상완 판 윗변이 승모근 점 → 팔꿈치 위 직선이 되어, 앞에서 보면 삼각근 너머 상완 위에 빈 공간이 컸다.
+- 골반(N13)과 같은 답: 어깨와 상완을 가르는 링은 **겨드랑이 정점(arm·lo, R쪽 v18–v19)을 arm 링과 공유**해야 하므로 링(정점 4)이 아니라 **기둥 하나 `delt`** + arm·lo 변. 상완 위 삼각근 끝에서 겨드랑이로 내려오는 기울어진 세로 링이고, 앞에서 arm 링과 겨드랑이에서 만나는 V.
+- 그 사이 어깨 쐐기 = 앞/뒤 **삼각형 판**(arm·hi – delt – arm·lo) + 위쪽 벽 쿼드(arm·hi → delt). `strip`이 홀수 고리를 삼각형 하나로 끝내도록 넓혔다(짝수 고리 결과는 불변 — 옛 표 194/384 재현으로 확인). 상완 판은 `delt → elbow·hi → elbow·lo → arm·lo`.
+- `delt` 위치: 앵커 (Arm, ForeArm) 가중치 (1−g, g), `g = delt along`(초기 0.4) — 상완을 늘이면 비율로 미끄러진다. 그 지점 평면 ±slab 안의 LeftArm 살에서 up 위끝(+`delt up`)과 depth 앞/뒤를 잰다. 살 창이 LeftArm 본만 보므로 삼각근이 LeftShoulder 본에 지배되면 낮게 잡힐 수 있다.
+- 같은 커밋에 elbow 링 `hi`(고정 0.05) → 슬라이더. 씬에서 0.01로 내려왔다. 236 정점 / 468 삼각형.
+
 ### 작업 방식
 - 지난 세션과 같다(슬라이더 → 표). 토폴로지는 매번 파이썬으로 재현해 닫힘·Euler 검사(열린 간선 = 손목 사각형 2개만이면 손이 닫음), 컴파일은 `dotnet build`. containment·self-collision·deform은 에디터에서 사람이.
 
@@ -115,12 +121,14 @@
 | crown `front` / `back` | 0.01 / 0.004 |
 | spine `front` / `back` | 0.01 / 0 |
 | spine1 · spine2 `front` / `back` | 0 / 0 (미튠) |
-| `crotch drop` / `hip out` | 0.08 / 0.93 |
+| `crotch drop` / `hip out` | 0.08 / 0.8 |
 | pelvis `front` / `back` | 0 / 0.006 |
-| knee `out` / `back` | 0.004 / 0.02 |
+| knee `out` / `back` | 0.005 / 0.02 |
 | ankle `tilt` / `front` / `back` | 45° / −0.08 / 0.005 |
+| `delt along` / `delt up` | 0.4 / 0 (미튠) |
+| elbow `hi` | 0.01 |
 
-전부 "튠 중" — 표로 옮긴 값은 아직 없다. knee `back`은 고정값 0.1에서 0.02로 내려왔다.
+전부 "튠 중" — 표로 옮긴 값은 아직 없다. 고정값에서 풀린 것: knee `back` 0.1 → 0.02, elbow `hi` 0.05 → 0.01.
 
 ### 남긴 일
 - 튠 값을 cage.md §3 표와 recipe로 옮기고 슬라이더 정리(두 세션 분). head splitter 오브젝트 삭제.
@@ -128,4 +136,5 @@
 - 골반 판 깊이가 Hips·UpLeg 살 전체 구간이라 crotch 정점도 엉덩이 깊이 — 안쪽 허벅지 벽이 헐거우면 crotch만의 깊이로.
 - `L/R hip` 높이는 `hip out` 하나로 옆·위가 함께 정해진다 — 따로 필요하면 up 오프셋 열.
 - spine1·spine2 링 튠(배·아랫가슴 깊이), spine2와 arm·lo의 높이 순서 확인.
+- `delt` 튠(along·up); 삼각근 살이 LeftShoulder 본이면 살 창 넓히기; delt 링 앞/뒤 여유 열 없음.
 - 이전 항목 그대로: 승모근 능선 측정 창, `neck mid` 깊이, 두께 driver, 자기겹침 스윕 — cage.md §9.
