@@ -411,6 +411,9 @@ public class mapping_tester : MonoBehaviour{
                 var ankle_tilt = EditorGUILayout.Slider("ankle ring tilt (deg)", mapping.tune.ankle_tilt, 0f, 80f);
                 var ankle_front = EditorGUILayout.Slider("ankle ring front reach", mapping.tune.ankle_front, -0.1f, 0.1f);
                 var ankle_back = EditorGUILayout.Slider("ankle ring back reach", mapping.tune.ankle_back, -0.05f, 0.1f);
+                var delt_along = EditorGUILayout.Slider("delt post along (ratio)", mapping.tune.delt_along, 0.1f, 0.9f);
+                var delt_up = EditorGUILayout.Slider("delt post up reach", mapping.tune.delt_up, -0.05f, 0.1f);
+                var elbow_hi = EditorGUILayout.Slider("elbow ring hi reach", mapping.tune.elbow_hi, -0.05f, 0.1f);
                 if(EditorGUI.EndChangeCheck()){
                     Undo.RecordObject(mapping, "tune cage");
                     mapping.tune.arm_hi = arm_hi;
@@ -442,6 +445,9 @@ public class mapping_tester : MonoBehaviour{
                     mapping.tune.ankle_tilt = ankle_tilt;
                     mapping.tune.ankle_front = ankle_front;
                     mapping.tune.ankle_back = ankle_back;
+                    mapping.tune.delt_along = delt_along;
+                    mapping.tune.delt_up = delt_up;
+                    mapping.tune.elbow_hi = elbow_hi;
                     mapping.constants = cage.bake(mapping.source, mapping.tune);
                     mapping.update_cage();
                     tune_pending = true;
