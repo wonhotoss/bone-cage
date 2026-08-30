@@ -126,6 +126,10 @@ public class cage_tune{
     public float delt_along = 0.4f;     // ratio: where along the upper arm (Arm -> ForeArm) the deltoid post stands
     public float delt_up = 0f;          // its reach above the upper arm's flesh there
     public float elbow_hi = 0.05f;      // hi reach of both elbow rings: how far their top edge clears the elbow
+    public float wrist_thumb = 0f;      // reach of both wrist rings across the palm, past the measured width: thumb side
+    public float wrist_pinky = 0f;      // and pinky side; negative draws the ring in over the wrist
+    public float thumb_out = 0f;        // reach of the palm octagon's outer posts past the hand's width: the thumb side
+    public float pinky_out = 0f;        // and the pinky side
 }
 #endif
 
@@ -666,8 +670,8 @@ public static class cage{
             // from the wrist instead of the whole hand fattening.
             rings[slot].s_hi = plate_hi - seat;
             rings[slot].s_lo = seat - plate_lo + wrist_drop / scale;
-            rings[slot].hi_front = rings[slot].lo_front = palm_hi - Vector3.Dot(rest[wrist], s);
-            rings[slot].hi_back = rings[slot].lo_back = Vector3.Dot(rest[wrist], s) - palm_lo;
+            rings[slot].hi_front = rings[slot].lo_front = palm_hi - Vector3.Dot(rest[wrist], s) + tune.wrist_thumb / scale;
+            rings[slot].hi_back = rings[slot].lo_back = Vector3.Dot(rest[wrist], s) - palm_lo + tune.wrist_pinky / scale;
 
             // The six control points that carve the palm outline into finger branches. The thumb
             // and pinky ends come from the hand's own width; the four valleys sit halfway between
@@ -677,7 +681,7 @@ public static class cage{
             var pinky = index[prefix + "Pinky1"];
 
             var cp = new int[6];
-            cp[0] = add($"{tag} thumb out", new[]{ thumb }, new[]{ 1f }, s * (wide_hi - Vector3.Dot(rest[thumb], s)));
+            cp[0] = add($"{tag} thumb out", new[]{ thumb }, new[]{ 1f }, s * (wide_hi - Vector3.Dot(rest[thumb], s) + tune.thumb_out / scale));
             for(var f = 0; f < 4; f++){
                 // The thumb branches off at its own second joint, the rest at their roots.
                 var a = f == 0 ? thumb : index[prefix + fingers[f] + "1"];
@@ -686,7 +690,7 @@ public static class cage{
                 var away = (span - d * Vector3.Dot(span, d)).normalized;
                 cp[f + 1] = add($"{tag} {fingers[f].ToLower()}|{fingers[f + 1].ToLower()}", new[]{ a, b }, new[]{ 0.5f, 0.5f }, away * (valley_reach / scale));
             }
-            cp[5] = add($"{tag} pinky out", new[]{ pinky }, new[]{ 1f }, s * (wide_lo - Vector3.Dot(rest[pinky], s)));
+            cp[5] = add($"{tag} pinky out", new[]{ pinky }, new[]{ 1f }, s * (wide_lo - Vector3.Dot(rest[pinky], s) - tune.pinky_out / scale));
 
             // Rings up one finger, past the branch ring it shares with its neighbours: one on every
             // joint out from the second, then one more on a virtual end bone, since the rig stops at
@@ -767,12 +771,13 @@ public static class cage{
             joint_rest_len = rest_len,
             rings = rings,
             posts = posts.ToArray(),
-            tris = topology(plates, walls),
         };
+        var rest_points = control_points(k, rest);
+        k.tris = topology(plates, walls, rest_points, side);
 
         // The panels are traced in one consistent sense, but which sense faces outward depends on
         // the rig's axes. The enclosed volume settles it: the root sits inside the cage.
-        if(volume(control_points(k, rest), k.tris) < 0.0){
+        if(volume(rest_points, k.tris) < 0.0){
             for(var t = 0; t < k.tris.Length; t += 3){
                 (k.tris[t + 1], k.tris[t + 2]) = (k.tris[t + 2], k.tris[t + 1]);
             }
@@ -831,17 +836,32 @@ public static class cage{
     // once on each of their two vertices -- or a wall, a chain of posts spanning one quad per
     // consecutive pair. A post is the vertex pair one control point owns: a ring's silhouette side
     // for the body, a cage_post for a hand.
-    static int[] topology(IEnumerable<(int hi, int lo)[]> plates, IEnumerable<(int hi, int lo)[]> walls){
+    //
+    // The shell is mirror symmetric: a face on the character's right is traced as the reverse of its
+    // left twin's mirror image (the reversal keeps every face wound the same way), which on its own
+    // would put the ladder's diagonals across the other corners, so the right side splits its quads
+    // the other way. So does the back of a plate against its front, which is the same reversal --
+    // then a quad folds along the same two control points on both faces. Which side a face is on is
+    // read off its rest centroid; no face straddles the midline, since every plate splits there.
+    static int[] topology(IEnumerable<(int hi, int lo)[]> plates, IEnumerable<(int hi, int lo)[]> walls, Vector3[] at, Vector3 side){
         var tris = new List<int>();
 
+        bool mirrored(IEnumerable<int> face){
+            var c = face.Average(v => Vector3.Dot(at[v], side));
+            Debug.Assert(Mathf.Abs(c) > 1e-6f, "cage: a face straddles the midline, so it cannot have a mirror twin");
+            return c < 0f;
+        }
+
         foreach(var plate in plates){
-            strip(tris, plate.Select(e => e.hi));
-            strip(tris, plate.Reverse().Select(e => e.lo));
+            var m = mirrored(plate.SelectMany(e => new[]{ e.hi, e.lo }));
+            strip(tris, plate.Select(e => e.hi), m);
+            strip(tris, plate.Reverse().Select(e => e.lo), !m);
         }
 
         foreach(var wall in walls){
             for(var i = 0; i + 1 < wall.Length; i++){
-                strip(tris, new[]{ wall[i + 1].hi, wall[i].hi, wall[i].lo, wall[i + 1].lo });
+                var quad = new[]{ wall[i + 1].hi, wall[i].hi, wall[i].lo, wall[i + 1].lo };
+                strip(tris, quad, mirrored(quad));
             }
         }
 
@@ -866,15 +886,23 @@ public static class cage{
     // its first corner, which skews a non-planar panel -- every ring carries its own depth, so the
     // torso would run straight from the crown to the knees and bypass the elbow rings. An outline
     // with an odd count ends in a single triangle where the two halves meet, so a three-point
-    // outline is just that triangle.
-    static void strip(List<int> tris, IEnumerable<int> loop){
+    // outline is just that triangle. Each rung's quad is split along one diagonal or, flipped,
+    // the other; the sense of the triangles is the outline's either way.
+    static void strip(List<int> tris, IEnumerable<int> loop, bool flip){
         var v = loop.ToArray();
         for(var i = 0; i + 1 < v.Length - 1 - i; i++){
             var j = v.Length - 1 - i;
-            if(j - 1 != i + 1){
-                tris.Add(v[i]); tris.Add(v[i + 1]); tris.Add(v[j - 1]);
+            if(j - 1 == i + 1){
+                tris.Add(v[i]); tris.Add(v[i + 1]); tris.Add(v[j]);
             }
-            tris.Add(v[i]); tris.Add(v[j - 1]); tris.Add(v[j]);
+            else if(flip){
+                tris.Add(v[i]); tris.Add(v[i + 1]); tris.Add(v[j]);
+                tris.Add(v[i + 1]); tris.Add(v[j - 1]); tris.Add(v[j]);
+            }
+            else{
+                tris.Add(v[i]); tris.Add(v[i + 1]); tris.Add(v[j - 1]);
+                tris.Add(v[i]); tris.Add(v[j - 1]); tris.Add(v[j]);
+            }
         }
     }
 

@@ -414,6 +414,10 @@ public class mapping_tester : MonoBehaviour{
                 var delt_along = EditorGUILayout.Slider("delt post along (ratio)", mapping.tune.delt_along, 0.1f, 0.9f);
                 var delt_up = EditorGUILayout.Slider("delt post up reach", mapping.tune.delt_up, -0.05f, 0.1f);
                 var elbow_hi = EditorGUILayout.Slider("elbow ring hi reach", mapping.tune.elbow_hi, -0.05f, 0.1f);
+                var wrist_thumb = EditorGUILayout.Slider("wrist ring thumb-side reach", mapping.tune.wrist_thumb, -0.05f, 0.05f);
+                var wrist_pinky = EditorGUILayout.Slider("wrist ring pinky-side reach", mapping.tune.wrist_pinky, -0.05f, 0.05f);
+                var thumb_out = EditorGUILayout.Slider("palm thumb out reach", mapping.tune.thumb_out, -0.05f, 0.05f);
+                var pinky_out = EditorGUILayout.Slider("palm pinky out reach", mapping.tune.pinky_out, -0.05f, 0.05f);
                 if(EditorGUI.EndChangeCheck()){
                     Undo.RecordObject(mapping, "tune cage");
                     mapping.tune.arm_hi = arm_hi;
@@ -448,6 +452,10 @@ public class mapping_tester : MonoBehaviour{
                     mapping.tune.delt_along = delt_along;
                     mapping.tune.delt_up = delt_up;
                     mapping.tune.elbow_hi = elbow_hi;
+                    mapping.tune.wrist_thumb = wrist_thumb;
+                    mapping.tune.wrist_pinky = wrist_pinky;
+                    mapping.tune.thumb_out = thumb_out;
+                    mapping.tune.pinky_out = pinky_out;
                     mapping.constants = cage.bake(mapping.source, mapping.tune);
                     mapping.update_cage();
                     tune_pending = true;
