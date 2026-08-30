@@ -396,8 +396,14 @@ public class mapping_tester : MonoBehaviour{
                 var head_back = EditorGUILayout.Slider("head ring back reach", mapping.tune.head_back, -0.05f, 0.1f);
                 var crown_front = EditorGUILayout.Slider("crown ring front reach", mapping.tune.crown_front, -0.05f, 0.1f);
                 var crown_back = EditorGUILayout.Slider("crown ring back reach", mapping.tune.crown_back, -0.05f, 0.1f);
-                var hip_front = EditorGUILayout.Slider("hip ring front reach", mapping.tune.hip_front, -0.05f, 0.1f);
-                var hip_back = EditorGUILayout.Slider("hip ring back reach", mapping.tune.hip_back, -0.05f, 0.1f);
+                var spine_front = EditorGUILayout.Slider("spine ring front reach", mapping.tune.spine_front, -0.05f, 0.1f);
+                var spine_back = EditorGUILayout.Slider("spine ring back reach", mapping.tune.spine_back, -0.05f, 0.1f);
+                var crotch_drop = EditorGUILayout.Slider("crotch drop", mapping.tune.crotch_drop, 0f, 0.3f);
+                var hip_out = EditorGUILayout.Slider("hip out (ratio)", mapping.tune.hip_out, 0f, 2f);
+                var pelvis_front = EditorGUILayout.Slider("pelvis front reach", mapping.tune.pelvis_front, -0.05f, 0.1f);
+                var pelvis_back = EditorGUILayout.Slider("pelvis back reach", mapping.tune.pelvis_back, -0.05f, 0.1f);
+                var knee_out = EditorGUILayout.Slider("knee ring outer reach", mapping.tune.knee_out, -0.1f, 0.1f);
+                var knee_back = EditorGUILayout.Slider("knee ring back reach", mapping.tune.knee_back, -0.05f, 0.2f);
                 if(EditorGUI.EndChangeCheck()){
                     Undo.RecordObject(mapping, "tune cage");
                     mapping.tune.arm_hi = arm_hi;
@@ -414,8 +420,14 @@ public class mapping_tester : MonoBehaviour{
                     mapping.tune.head_back = head_back;
                     mapping.tune.crown_front = crown_front;
                     mapping.tune.crown_back = crown_back;
-                    mapping.tune.hip_front = hip_front;
-                    mapping.tune.hip_back = hip_back;
+                    mapping.tune.spine_front = spine_front;
+                    mapping.tune.spine_back = spine_back;
+                    mapping.tune.crotch_drop = crotch_drop;
+                    mapping.tune.hip_out = hip_out;
+                    mapping.tune.pelvis_front = pelvis_front;
+                    mapping.tune.pelvis_back = pelvis_back;
+                    mapping.tune.knee_out = knee_out;
+                    mapping.tune.knee_back = knee_back;
                     mapping.constants = cage.bake(mapping.source, mapping.tune);
                     mapping.update_cage();
                     tune_pending = true;
