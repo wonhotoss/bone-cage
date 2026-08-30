@@ -5,9 +5,9 @@ using UnityEngine;
 
 // Bone-length driven cage generation.
 //
-// The body is deliberately coarse: fifteen rectangular rings -- crown, head, two arms, two
-// elbows, two wrists, one across the spine, two knees, two ankles, two toes -- whose corners are
-// stitched into flat panels. Posts on the midline (see cage_post) -- one per ring across the
+// The body is deliberately coarse: seventeen rectangular rings -- crown, head, two arms, two
+// elbows, two wrists, three across the spine, two knees, two ankles, two toes -- whose corners
+// are stitched into flat panels. Posts on the midline (see cage_post) -- one per ring across the
 // body, plus the bottom of the neck's V and the sternum -- split the torso and head panels into a
 // left and a right half; the arm rings' top edges are drawn in to meet at the neck post, so the V
 // parts the torso from the head. Below the spine ring the pelvis branches into the legs the way a
@@ -18,8 +18,8 @@ using UnityEngine;
 // instep and the back panel calf to heel to sole; the toes end on a post pair standing on a
 // virtual end bone, a fingertip's. A front and back silhouette plus one quad per silhouette edge
 // closes it; the quads along the crown ring and the tip posts themselves cap the shell there.
-// Past each wrist the hand is resolved finger by finger, out of posts rather than rings: 220
-// vertices, 436 triangles in all.
+// Past each wrist the hand is resolved finger by finger, out of posts rather than rings: 232
+// vertices, 460 triangles in all.
 //
 // bake() (editor) reads the rest mesh + skeleton once and distils everything the generator
 // needs into cage_constants: per-joint FK data, per-ring placement, and the fixed topology.
@@ -110,6 +110,8 @@ public class cage_tune{
     public float crown_back = 0f;   // shoulder blades (back) sit under the torso panel these two rings span
     public float spine_front = 0f;  // the same on the spine ring, the torso panel's bottom edge
     public float spine_back = 0f;
+    public float spine1_front = 0f, spine1_back = 0f;   // and on the two spine rings above it, the belly
+    public float spine2_front = 0f, spine2_back = 0f;   // and the lower chest
     public float crotch_drop = 0.15f;   // how far below the Hips joint the crotch post sits, along up
     public float hip_out = 1f;          // ratio: an outer hip post is this many crotch->UpLeg spans past its UpLeg
     public float pelvis_front = 0f;     // depth reach of the three pelvis posts past the pelvis flesh:
@@ -215,22 +217,22 @@ public static class cage{
 
 #if UNITY_EDITOR
     // Ring slots. The topology tables index these directly. The torso meets the arms at the arm
-    // rings and the pelvis at the spine ring; the elbow and wrist rings hang off the arms, the
-    // knee, ankle and toe rings off the pelvis posts.
+    // rings and the pelvis at the spine ring, with a ring on each spine joint between; the elbow
+    // and wrist rings hang off the arms, the knee, ankle and toe rings off the pelvis posts.
     const int crown = 0,
         arm_hi = 1, elbow_hi = 2, wrist_hi = 3,
         arm_lo = 4, elbow_lo = 5, wrist_lo = 6,
-        spine = 7,
-        knee_hi = 8, ankle_hi = 9, toe_hi = 10,
-        knee_lo = 11, ankle_lo = 12, toe_lo = 13,
-        head = 14;
+        spine = 7, spine1 = 8, spine2 = 9,
+        knee_hi = 10, ankle_hi = 11, toe_hi = 12,
+        knee_lo = 13, ankle_lo = 14, toe_lo = 15,
+        head = 16;
 
     // Stations that are not rings but posts. neck and sternum carry a mid and nothing else, on the
     // spine between the arm rings' top edges: the bottom of the neck's V, and the sternum level
     // with the armpits. hip is the pelvis: its hi and lo are the outer hip posts, its mid the
     // crotch, so crotch-hip reads as a tilted ring the way a finger's branch ring is two palm posts.
     // The tips are the ends of the toes, a post on each side standing on a virtual end bone.
-    const int neck = 15, sternum = 16, hip = 17, tip_hi = 18, tip_lo = 19;
+    const int neck = 17, sternum = 18, hip = 19, tip_hi = 20, tip_lo = 21;
 
     // A body control point: one silhouette edge of a ring, or the midline post its front and back
     // edges leave in the middle. hi/lo name the two sides of the silhouette axis, so an "hi" limb
@@ -242,9 +244,12 @@ public static class cage{
     // halves meeting on the midline, so an edit on one side stays on that side's half; the ladder
     // of a half starts on the silhouette and returns along the midline, one rung per station.
     static readonly (int ring, edge e)[][] panels = {
-        // The torso, its top edge one arm of the neck's V, rungs level across the chest and belly.
-        new[]{ (arm_hi, edge.hi), (arm_hi, edge.lo), (spine, edge.hi), (spine, edge.mid), (sternum, edge.mid), (neck, edge.mid) },
-        new[]{ (neck, edge.mid), (sternum, edge.mid), (spine, edge.mid), (spine, edge.lo), (arm_lo, edge.lo), (arm_lo, edge.hi) },
+        // The torso, its top edge one arm of the neck's V, a rung level across the body at the
+        // sternum and at every spine ring.
+        new[]{ (arm_hi, edge.hi), (arm_hi, edge.lo), (spine2, edge.hi), (spine1, edge.hi), (spine, edge.hi),
+               (spine, edge.mid), (spine1, edge.mid), (spine2, edge.mid), (sternum, edge.mid), (neck, edge.mid) },
+        new[]{ (neck, edge.mid), (sternum, edge.mid), (spine2, edge.mid), (spine1, edge.mid), (spine, edge.mid),
+               (spine, edge.lo), (spine1, edge.lo), (spine2, edge.lo), (arm_lo, edge.lo), (arm_lo, edge.hi) },
         // The neck, from the V up to the head ring, and the head, from there to the crown.
         new[]{ (head, edge.mid), (head, edge.hi), (arm_hi, edge.hi), (neck, edge.mid) },
         new[]{ (neck, edge.mid), (arm_lo, edge.hi), (head, edge.lo), (head, edge.mid) },
@@ -283,13 +288,13 @@ public static class cage{
     // other is the wall between the thighs.
     static readonly (int ring, edge e)[][] perimeter = {
         new[]{ (crown, edge.hi), (head, edge.hi), (arm_hi, edge.hi), (elbow_hi, edge.hi), (wrist_hi, edge.hi) },
-        new[]{ (wrist_hi, edge.lo), (elbow_hi, edge.lo), (arm_hi, edge.lo), (spine, edge.hi),
+        new[]{ (wrist_hi, edge.lo), (elbow_hi, edge.lo), (arm_hi, edge.lo), (spine2, edge.hi), (spine1, edge.hi), (spine, edge.hi),
                (hip, edge.hi), (knee_hi, edge.hi), (ankle_hi, edge.hi), (toe_hi, edge.hi), (tip_hi, edge.hi),
                (tip_hi, edge.lo), (toe_hi, edge.lo), (ankle_hi, edge.lo), (knee_hi, edge.lo),
                (hip, edge.mid),
                (knee_lo, edge.hi), (ankle_lo, edge.hi), (toe_lo, edge.hi), (tip_lo, edge.hi),
                (tip_lo, edge.lo), (toe_lo, edge.lo), (ankle_lo, edge.lo), (knee_lo, edge.lo), (hip, edge.lo),
-               (spine, edge.lo), (arm_lo, edge.lo), (elbow_lo, edge.lo), (wrist_lo, edge.lo) },
+               (spine, edge.lo), (spine1, edge.lo), (spine2, edge.lo), (arm_lo, edge.lo), (elbow_lo, edge.lo), (wrist_lo, edge.lo) },
         new[]{ (wrist_lo, edge.hi), (elbow_lo, edge.hi), (arm_lo, edge.hi), (head, edge.lo), (crown, edge.lo), (crown, edge.mid), (crown, edge.hi) },
     };
 
@@ -381,7 +386,7 @@ public static class cage{
         // to whichever ring bounds that panel there. The torso panels split at the midline, so their
         // depth interpolates crown to spine: the chest and back are the crown and spine rings'
         // business, and depth reach on the arm rings would only bulge the side of the torso. Editable.
-        var recipes = new recipe[15];
+        var recipes = new recipe[17];
         recipes[crown] = new recipe{ name = "crown", anchor = js("Head"), wrap = js("Head"), n = up, s = side, d = depth, kind = fit.cap, front = (tune.crown_front, tune.crown_front), back = (tune.crown_back, tune.crown_back) };
         // The head ring parts the head from the neck. The chin hangs ahead of and below the skull
         // base, so the parting plane leans forward about the side axis: its frame is up and depth
@@ -397,8 +402,12 @@ public static class cage{
         recipes[elbow_lo] = new recipe{ name = "R elbow", anchor = js("RightForeArm"), wrap = js("RightArm"), n = -side, s = up, d = depth, kind = fit.joint, hi = 0.05f };
         recipes[wrist_lo] = new recipe{ name = "R wrist", anchor = js("RightHand"), wrap = js("RightHand"), n = -side, s = up, d = depth, kind = fit.joint };
         // The spine ring is the torso panel's bottom edge, level across the Spine joint; it wraps
-        // whatever crosses that height, so the waist. The pelvis below it is posts, not a ring.
+        // whatever crosses that height, so the waist. The pelvis below it is posts, not a ring. The
+        // two rings above it, on Spine1 and Spine2, section the belly and the lower chest the same
+        // way, so the torso panel gets a rung at every spine joint up to the sternum.
         recipes[spine] = new recipe{ name = "spine", anchor = js("Spine"), wrap = js("Hips"), n = up, s = side, d = depth, kind = fit.joint, front = (tune.spine_front, tune.spine_front), back = (tune.spine_back, tune.spine_back) };
+        recipes[spine1] = new recipe{ name = "spine1", anchor = js("Spine1"), wrap = js("Hips"), n = up, s = side, d = depth, kind = fit.joint, front = (tune.spine1_front, tune.spine1_front), back = (tune.spine1_back, tune.spine1_back) };
+        recipes[spine2] = new recipe{ name = "spine2", anchor = js("Spine2"), wrap = js("Hips"), n = up, s = side, d = depth, kind = fit.joint, front = (tune.spine2_front, tune.spine2_front), back = (tune.spine2_back, tune.spine2_back) };
         // Each leg's rings see only that leg's flesh, so the two legs' rings sit clear of each other
         // however close the legs stand. s is side on both, so the outer edge is hi on the left knee
         // and lo on the right.
@@ -519,6 +528,8 @@ public static class cage{
         at[(neck, edge.mid)] = post("neck mid", js("Neck"), new[]{ 1f }, Vector3.zero, depth, shoulders, arm.hi_back, arm.hi_front);
         at[(sternum, edge.mid)] = post("sternum mid", js("Spine3"), new[]{ 1f }, Vector3.zero, depth, shoulders, arm.lo_back, arm.lo_front);
         midline(spine, "Spine");
+        midline(spine1, "Spine1");
+        midline(spine2, "Spine2");
 
         // The pelvis, a palm the legs branch from. The crotch hangs below the Hips joint; each outer
         // hip post continues the crotch->UpLeg line past its UpLeg by hip_out of that span, as the
