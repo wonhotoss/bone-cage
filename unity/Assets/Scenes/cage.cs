@@ -5,17 +5,21 @@ using UnityEngine;
 
 // Bone-length driven cage generation.
 //
-// The body is deliberately coarse: thirteen rectangular rings -- crown, head, two arms, two
-// elbows, two wrists, one across the spine, two knees, two soles -- whose corners are stitched
-// into flat panels. Posts on the midline (see cage_post) -- one per ring across the body, plus
-// the bottom of the neck's V and the sternum -- split the torso and head panels into a left and a
-// right half; the arm rings' top edges are drawn in to meet at the neck post, so the V parts the
-// torso from the head. Below the spine ring the pelvis branches into the legs the way a palm
-// branches into fingers: three posts -- the crotch and the two outer hips -- span a pentagon with
-// the spine ring, and each leg hangs from the tilted pair crotch-hip, meeting the other at the
-// crotch. A front and back silhouette plus one quad per silhouette edge closes it; the quads
-// along the crown and sole rings themselves cap the shell there. Past each wrist the hand is
-// resolved finger by finger, out of posts rather than rings: 204 vertices, 404 triangles in all.
+// The body is deliberately coarse: fifteen rectangular rings -- crown, head, two arms, two
+// elbows, two wrists, one across the spine, two knees, two ankles, two toes -- whose corners are
+// stitched into flat panels. Posts on the midline (see cage_post) -- one per ring across the
+// body, plus the bottom of the neck's V and the sternum -- split the torso and head panels into a
+// left and a right half; the arm rings' top edges are drawn in to meet at the neck post, so the V
+// parts the torso from the head. Below the spine ring the pelvis branches into the legs the way a
+// palm branches into fingers: three posts -- the crotch and the two outer hips -- span a pentagon
+// with the spine ring, and each leg hangs from the tilted pair crotch-hip, meeting the other at
+// the crotch. Down a leg the ring frames turn with it: the ankle ring leans back through the
+// heel, the toe ring stands upright across the ball of the foot, so the front panel runs shin to
+// instep and the back panel calf to heel to sole; the toes end on a post pair standing on a
+// virtual end bone, a fingertip's. A front and back silhouette plus one quad per silhouette edge
+// closes it; the quads along the crown ring and the tip posts themselves cap the shell there.
+// Past each wrist the hand is resolved finger by finger, out of posts rather than rings: 220
+// vertices, 436 triangles in all.
 //
 // bake() (editor) reads the rest mesh + skeleton once and distils everything the generator
 // needs into cage_constants: per-joint FK data, per-ring placement, and the fixed topology.
@@ -29,21 +33,25 @@ using UnityEngine;
 // rectangle spans the anchors' own spread plus the baked reach on each side.
 //
 // The two silhouette edges are placed independently, each from the anchors on its own side. A ring
-// shared by both limbs (the knees, the soles) therefore tilts to track both legs, rather than being
-// pinned along n by whichever leg is longer. A ring on a single limb lists that limb's joints on
-// both sides and stays axis aligned.
+// shared by both limbs (as the knees and soles once were) therefore tilts to track both legs,
+// rather than being pinned along n by whichever leg is longer. A ring on a single limb -- every
+// ring now -- lists that limb's joints on both sides and stays axis aligned. The two depth sides
+// likewise each have their own anchors, normally all of the ring's; the toe ring hangs its bottom
+// on the Foot joint instead, so the sole stays level with the heel.
 [Serializable]
 public class cage_ring{
     public string name;         // as the design document calls it; the debug view's tag
     public int[] anchor_hi;     // joints placing the +s edge (indices into cage_constants.joint_name)
     public int[] anchor_lo;     // joints placing the -s edge
+    public int[] d_hi_anchor;   // joints placing the front side: it sits hi_front / lo_front past the farthest of them along d
+    public int[] d_lo_anchor;   // joints placing the back side: hi_back / lo_back past the nearest
     public Vector3 n;           // ring normal, pointing away from the body
     public Vector3 s;           // in-plane axis the front/back silhouette runs along
     public Vector3 d;           // in-plane axis separating the front and back panels
     public float along_hi, along_lo;    // each edge's offset past its farthest anchor, along n; unequal on a tilted ring
     public float s_lo, s_hi;    // reach beyond the anchors' span, on the -s and +s side
-    public float hi_front, lo_front;    // each corner's reach along d past the anchors' depth span:
-    public float hi_back, lo_back;      // front past its max, back past its min
+    public float hi_front, lo_front;    // each corner's reach along d past its depth anchors:
+    public float hi_back, lo_back;      // front past their max, back past their min
 }
 
 // A post is the pair of vertices one control point owns, along one axis d. The hand needs this
@@ -108,6 +116,9 @@ public class cage_tune{
     public float pelvis_back = 0f;      // the belly and pubis (front), the buttocks (back)
     public float knee_out = 0f;         // reach of both knee rings' outer edge, away from the other leg
     public float knee_back = 0.1f;      // and of their back edge, past the hamstring and calf
+    public float ankle_tilt = 45f;      // degrees the ankle rings' plane leans back from horizontal about the side axis: heel down, instep up
+    public float ankle_front = 0f;      // depth reach of the ankle rings along their tilted d: up the instep (front),
+    public float ankle_back = 0f;       // down behind the heel (back) -- which is also the height the sole is levelled to
 }
 #endif
 
@@ -160,9 +171,9 @@ public static class cage{
         return jc;
     }
 
-    // The ring axes are orthonormal and cardinal, so summing the three components rebuilds a
-    // corner exactly. Each silhouette edge is placed along n by its own anchors; the depth extent
-    // is shared, which keeps the four corners planar however far the two edges drift apart.
+    // The ring axes are orthonormal, so summing the three components rebuilds a corner exactly.
+    // Each silhouette edge is placed along n by its own anchors; the depth extent is shared by both
+    // edges, which keeps the four corners planar however far the two edges drift apart.
     static Vector3[] ring_corners(cage_constants k, Vector3[] jc){
         var verts = new Vector3[k.rings.Length * 4];
         for(var i = 0; i < k.rings.Length; i++){
@@ -175,9 +186,8 @@ public static class cage{
             var edge_hi = r.s * (a_hi.Max(p => Vector3.Dot(p, r.s)) + r.s_hi);
             var edge_lo = r.s * (a_lo.Min(p => Vector3.Dot(p, r.s)) - r.s_lo);
 
-            var a = a_hi.Concat(a_lo);
-            var front = a.Max(p => Vector3.Dot(p, r.d));
-            var back = a.Min(p => Vector3.Dot(p, r.d));
+            var front = r.d_hi_anchor.Max(j => Vector3.Dot(jc[j], r.d));
+            var back = r.d_lo_anchor.Min(j => Vector3.Dot(jc[j], r.d));
 
             verts[i * 4 + hi_front] = plane_hi + edge_hi + r.d * (front + r.hi_front);
             verts[i * 4 + hi_back] = plane_hi + edge_hi + r.d * (back - r.hi_back);
@@ -205,21 +215,22 @@ public static class cage{
 
 #if UNITY_EDITOR
     // Ring slots. The topology tables index these directly. The torso meets the arms at the arm
-    // rings and the pelvis at the spine ring; the elbow and wrist rings hang off the arms, the knee
-    // and sole rings off the pelvis posts.
+    // rings and the pelvis at the spine ring; the elbow and wrist rings hang off the arms, the
+    // knee, ankle and toe rings off the pelvis posts.
     const int crown = 0,
         arm_hi = 1, elbow_hi = 2, wrist_hi = 3,
         arm_lo = 4, elbow_lo = 5, wrist_lo = 6,
         spine = 7,
-        knee_hi = 8, sole_hi = 9,
-        knee_lo = 10, sole_lo = 11,
-        head = 12;
+        knee_hi = 8, ankle_hi = 9, toe_hi = 10,
+        knee_lo = 11, ankle_lo = 12, toe_lo = 13,
+        head = 14;
 
     // Stations that are not rings but posts. neck and sternum carry a mid and nothing else, on the
     // spine between the arm rings' top edges: the bottom of the neck's V, and the sternum level
     // with the armpits. hip is the pelvis: its hi and lo are the outer hip posts, its mid the
     // crotch, so crotch-hip reads as a tilted ring the way a finger's branch ring is two palm posts.
-    const int neck = 13, sternum = 14, hip = 15;
+    // The tips are the ends of the toes, a post on each side standing on a virtual end bone.
+    const int neck = 15, sternum = 16, hip = 17, tip_hi = 18, tip_lo = 19;
 
     // A body control point: one silhouette edge of a ring, or the midline post its front and back
     // edges leave in the middle. hi/lo name the two sides of the silhouette axis, so an "hi" limb
@@ -247,12 +258,18 @@ public static class cage{
         // hand this palm is, split on the midline like the torso above it.
         new[]{ (spine, edge.mid), (spine, edge.hi), (hip, edge.hi), (hip, edge.mid) },
         new[]{ (hip, edge.mid), (hip, edge.lo), (spine, edge.lo), (spine, edge.mid) },
-        // Each leg from its tilted hip ring -- the crotch and its outer hip -- down to its own knee
-        // and sole; the two thighs share only the crotch.
+        // Each leg from its tilted hip ring -- the crotch and its outer hip -- down to its own knee,
+        // ankle, toe and tip; the two thighs share only the crotch. The frames turn down the leg,
+        // so the front panel is the shin, then the instep, then the top of the toes, and the back
+        // panel the calf, the heel, the sole.
         new[]{ (hip, edge.mid), (hip, edge.hi), (knee_hi, edge.hi), (knee_hi, edge.lo) },
         new[]{ (knee_lo, edge.hi), (knee_lo, edge.lo), (hip, edge.lo), (hip, edge.mid) },
-        new[]{ (knee_hi, edge.lo), (knee_hi, edge.hi), (sole_hi, edge.hi), (sole_hi, edge.lo) },
-        new[]{ (sole_lo, edge.hi), (sole_lo, edge.lo), (knee_lo, edge.lo), (knee_lo, edge.hi) },
+        new[]{ (knee_hi, edge.lo), (knee_hi, edge.hi), (ankle_hi, edge.hi), (ankle_hi, edge.lo) },
+        new[]{ (ankle_lo, edge.hi), (ankle_lo, edge.lo), (knee_lo, edge.lo), (knee_lo, edge.hi) },
+        new[]{ (ankle_hi, edge.lo), (ankle_hi, edge.hi), (toe_hi, edge.hi), (toe_hi, edge.lo) },
+        new[]{ (toe_lo, edge.hi), (toe_lo, edge.lo), (ankle_lo, edge.lo), (ankle_lo, edge.hi) },
+        new[]{ (toe_hi, edge.lo), (toe_hi, edge.hi), (tip_hi, edge.hi), (tip_hi, edge.lo) },
+        new[]{ (tip_lo, edge.hi), (tip_lo, edge.lo), (toe_lo, edge.lo), (toe_lo, edge.hi) },
     };
 
     // The silhouette boundary of those panels, traced in the same sense: every consecutive pair
@@ -260,16 +277,18 @@ public static class cage{
     // wrist ring is where the arm hands over to a hand, whose own panels are the back of the hand
     // and the palm -- so the arm spends its front and back edges on panels and its top and bottom
     // here, and the hand does the opposite. No quad closes across a wrist, which breaks the loop
-    // into three chains. The runs walking along one ring -- edge to edge, through the midline post
-    // on the crown -- are its own rectangle: the shell caps there, at the crown and the soles. The
-    // run down one leg's inner side, through the crotch and up the other is the wall between the
-    // thighs.
+    // into three chains. The runs walking along one station -- edge to edge, through the midline
+    // post on the crown, post to post at a tip -- are its own rectangle: the shell caps there, at
+    // the crown and the toes. The run down one leg's inner side, through the crotch and up the
+    // other is the wall between the thighs.
     static readonly (int ring, edge e)[][] perimeter = {
         new[]{ (crown, edge.hi), (head, edge.hi), (arm_hi, edge.hi), (elbow_hi, edge.hi), (wrist_hi, edge.hi) },
         new[]{ (wrist_hi, edge.lo), (elbow_hi, edge.lo), (arm_hi, edge.lo), (spine, edge.hi),
-               (hip, edge.hi), (knee_hi, edge.hi), (sole_hi, edge.hi), (sole_hi, edge.lo), (knee_hi, edge.lo),
+               (hip, edge.hi), (knee_hi, edge.hi), (ankle_hi, edge.hi), (toe_hi, edge.hi), (tip_hi, edge.hi),
+               (tip_hi, edge.lo), (toe_hi, edge.lo), (ankle_hi, edge.lo), (knee_hi, edge.lo),
                (hip, edge.mid),
-               (knee_lo, edge.hi), (sole_lo, edge.hi), (sole_lo, edge.lo), (knee_lo, edge.lo), (hip, edge.lo),
+               (knee_lo, edge.hi), (ankle_lo, edge.hi), (toe_lo, edge.hi), (tip_lo, edge.hi),
+               (tip_lo, edge.lo), (toe_lo, edge.lo), (ankle_lo, edge.lo), (knee_lo, edge.lo), (hip, edge.lo),
                (spine, edge.lo), (arm_lo, edge.lo), (elbow_lo, edge.lo), (wrist_lo, edge.lo) },
         new[]{ (wrist_lo, edge.hi), (elbow_lo, edge.hi), (arm_lo, edge.hi), (head, edge.lo), (crown, edge.lo), (crown, edge.mid), (crown, edge.hi) },
     };
@@ -362,7 +381,7 @@ public static class cage{
         // to whichever ring bounds that panel there. The torso panels split at the midline, so their
         // depth interpolates crown to spine: the chest and back are the crown and spine rings'
         // business, and depth reach on the arm rings would only bulge the side of the torso. Editable.
-        var recipes = new recipe[13];
+        var recipes = new recipe[15];
         recipes[crown] = new recipe{ name = "crown", anchor = js("Head"), wrap = js("Head"), n = up, s = side, d = depth, kind = fit.cap, front = (tune.crown_front, tune.crown_front), back = (tune.crown_back, tune.crown_back) };
         // The head ring parts the head from the neck. The chin hangs ahead of and below the skull
         // base, so the parting plane leans forward about the side axis: its frame is up and depth
@@ -380,13 +399,22 @@ public static class cage{
         // The spine ring is the torso panel's bottom edge, level across the Spine joint; it wraps
         // whatever crosses that height, so the waist. The pelvis below it is posts, not a ring.
         recipes[spine] = new recipe{ name = "spine", anchor = js("Spine"), wrap = js("Hips"), n = up, s = side, d = depth, kind = fit.joint, front = (tune.spine_front, tune.spine_front), back = (tune.spine_back, tune.spine_back) };
-        // Each leg's rings see only that leg's flesh, so the two knees and soles sit clear of each
-        // other however close the legs stand. s is side on both, so the outer edge is hi on the left
-        // knee and lo on the right.
+        // Each leg's rings see only that leg's flesh, so the two legs' rings sit clear of each other
+        // however close the legs stand. s is side on both, so the outer edge is hi on the left knee
+        // and lo on the right.
         recipes[knee_hi] = new recipe{ name = "L knee", anchor = js("LeftLeg"), wrap = js("LeftUpLeg"), n = -up, s = side, d = depth, kind = fit.joint, hi = tune.knee_out, back = (tune.knee_back, tune.knee_back) };
-        recipes[sole_hi] = new recipe{ name = "L sole", anchor = js("LeftFoot", "LeftToeBase"), wrap = js("LeftFoot"), n = -up, s = side, d = depth, kind = fit.cap };
         recipes[knee_lo] = new recipe{ name = "R knee", anchor = js("RightLeg"), wrap = js("RightUpLeg"), n = -up, s = side, d = depth, kind = fit.joint, lo = tune.knee_out, back = (tune.knee_back, tune.knee_back) };
-        recipes[sole_lo] = new recipe{ name = "R sole", anchor = js("RightFoot", "RightToeBase"), wrap = js("RightFoot"), n = -up, s = side, d = depth, kind = fit.cap };
+        // The ankle ring leans back through the Foot joint -- heel down and behind, the crease of
+        // the instep up and ahead -- so its frame is the knee's turned about the side axis by the
+        // tilt, part way toward the toe ring's. That one stands upright across the ball of the
+        // foot: n along the foot, d up, so its front is the top of the foot and its back the sole.
+        var lean = tune.ankle_tilt * Mathf.Deg2Rad;
+        var ankle_n = -Mathf.Cos(lean) * up + Mathf.Sin(lean) * depth;
+        var ankle_d = Mathf.Cos(lean) * depth + Mathf.Sin(lean) * up;
+        recipes[ankle_hi] = new recipe{ name = "L ankle", anchor = js("LeftFoot"), wrap = js("LeftLeg"), n = ankle_n, s = side, d = ankle_d, kind = fit.joint, front = (tune.ankle_front, tune.ankle_front), back = (tune.ankle_back, tune.ankle_back) };
+        recipes[toe_hi] = new recipe{ name = "L toe", anchor = js("LeftToeBase"), wrap = js("LeftFoot"), n = depth, s = side, d = up, kind = fit.joint };
+        recipes[ankle_lo] = new recipe{ name = "R ankle", anchor = js("RightFoot"), wrap = js("RightLeg"), n = ankle_n, s = side, d = ankle_d, kind = fit.joint, front = (tune.ankle_front, tune.ankle_front), back = (tune.ankle_back, tune.ankle_back) };
+        recipes[toe_lo] = new recipe{ name = "R toe", anchor = js("RightToeBase"), wrap = js("RightFoot"), n = depth, s = side, d = up, kind = fit.joint };
 
         // Widen a measured span by the margin, about its middle.
         static (float lo, float hi) inflate(float lo, float hi){
@@ -429,6 +457,8 @@ public static class cage{
                 name = r.name,
                 anchor_hi = hi,
                 anchor_lo = lo,
+                d_hi_anchor = r.anchor,
+                d_lo_anchor = r.anchor,
                 n = r.n,
                 s = r.s,
                 d = r.d,
@@ -509,6 +539,42 @@ public static class cage{
         at[(hip, edge.mid)] = pelvis_post("crotch", new[]{ hips }, new[]{ 1f }, -drop);
         at[(hip, edge.hi)] = pelvis_post("L hip", js("LeftUpLeg", "Hips"), new[]{ 1f + f, -f }, drop * f);
         at[(hip, edge.lo)] = pelvis_post("R hip", js("RightUpLeg", "Hips"), new[]{ 1f + f, -f }, drop * f);
+
+        // One foot, past its ankle ring. The sole is level: the toe ring's bottom edge and the tips'
+        // lower ends sit at the height of the ankle ring's bottom -- the heel -- and hang on the
+        // Foot joint, so they follow the heel whatever the foot bone does; only their tops are read
+        // off the flesh. The toes end past ToeBase with no joint to stand on, so the tip is a
+        // fingertip's ring: a post on each side of the toes on a virtual end bone -- (1+f, -f) of
+        // ToeBase and Foot, f the toes' reach beyond ToeBase as a share of the foot bone -- so
+        // lengthening the foot carries the toes out with it.
+        void foot(string prefix, string tag, int ankle, int toe, int station){
+            var joint = index[prefix + "Foot"];
+            var ball = index[prefix + "ToeBase"];
+            var floor = Vector3.Dot(rest[joint] - rest_corners[ankle * 4 + lo_back], up);
+            rings[toe].d_lo_anchor = new[]{ joint };
+            rings[toe].hi_back = rings[toe].lo_back = floor;
+
+            var meat = subtree(ball, parent).SelectMany(j => flesh[j]).ToArray();
+            var over = meat.Max(p => Vector3.Dot(p - rest[ball], dir[ball])) * (1f + margin);
+            var share = over / rest_len[ball];
+            var anchor = new[]{ ball, joint };
+            var weight = new[]{ 1f + share, -share };
+            var end = rest[ball] * (1f + share) - rest[joint] * share;
+            var (wide_lo, wide_hi) = inflate(meat.Min(p => Vector3.Dot(p, side)), meat.Max(p => Vector3.Dot(p, side)));
+            var (_, top) = inflate(meat.Min(p => Vector3.Dot(p, up)), meat.Max(p => Vector3.Dot(p, up)));
+
+            int add(Vector3 reach){
+                posts.Add(new cage_post{
+                    name = $"{tag} tip", anchor = anchor, weight = weight, reach = reach, d = up,
+                    d_lo_anchor = new[]{ joint }, d_hi_anchor = new[]{ ball }, d_lo = floor, d_hi = top - Vector3.Dot(rest[ball], up),
+                });
+                return posts.Count - 1;
+            }
+            at[(station, edge.hi)] = add(side * (wide_hi - Vector3.Dot(end, side)));
+            at[(station, edge.lo)] = add(side * (wide_lo - Vector3.Dot(end, side)));
+        }
+        foot("Left", "L", ankle_hi, toe_hi, tip_hi);
+        foot("Right", "R", ankle_lo, toe_lo, tip_lo);
 
         // A body control point as a vertex pair, front then back: a post where the station has one,
         // otherwise a ring's silhouette edge.
@@ -853,8 +919,9 @@ public static class cage{
     }
 
     // Debug view: which joint places what, as a line from the joint center to the feature it
-    // places -- each silhouette edge of a ring by its own anchors, a post group by its center. The
-    // weight is the post's affine weight; a ring on a virtual end bone reads (1+f, -f) on its two.
+    // places -- each silhouette edge of a ring by its own anchors, a depth side by any anchor of its
+    // own that the edges do not already show, a post group by its center. The weight is the post's
+    // affine weight; a ring on a virtual end bone reads (1+f, -f) on its two.
     public static IEnumerable<(string name, string joint, float weight, Vector3 from, Vector3 to)> anchors(IReadOnlyDictionary<string, float> lengths, cage_constants k){
         var jc = joint_centers(lengths, k);
         var v = control_points(k, jc);
@@ -862,8 +929,13 @@ public static class cage{
         var rings = k.rings.SelectMany((r, i) => {
             var hi = (v[i * 4 + hi_front] + v[i * 4 + hi_back]) * 0.5f;
             var lo = (v[i * 4 + lo_front] + v[i * 4 + lo_back]) * 0.5f;
+            var front = (v[i * 4 + hi_front] + v[i * 4 + lo_front]) * 0.5f;
+            var back = (v[i * 4 + hi_back] + v[i * 4 + lo_back]) * 0.5f;
+            var edges = r.anchor_hi.Concat(r.anchor_lo);
             return r.anchor_hi.Select(j => (name: r.name, joint: k.joint_name[j], weight: 1f, from: jc[j], to: hi))
-                .Concat(r.anchor_lo.Select(j => (name: r.name, joint: k.joint_name[j], weight: 1f, from: jc[j], to: lo)));
+                .Concat(r.anchor_lo.Select(j => (name: r.name, joint: k.joint_name[j], weight: 1f, from: jc[j], to: lo)))
+                .Concat(r.d_hi_anchor.Except(edges).Select(j => (name: r.name, joint: k.joint_name[j], weight: 1f, from: jc[j], to: front)))
+                .Concat(r.d_lo_anchor.Except(edges).Select(j => (name: r.name, joint: k.joint_name[j], weight: 1f, from: jc[j], to: back)));
         });
 
         var posts = k.posts.Select((p, i) => (p, i)).GroupBy(e => e.p.name).SelectMany(g => {
