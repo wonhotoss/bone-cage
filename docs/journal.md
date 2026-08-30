@@ -66,7 +66,7 @@
 
 ## 2026-08-30 — 골반에서 발끝까지
 
-커밋: `1eee5a8` → `a982e22` → `954124f`(씬)
+커밋: `1eee5a8` → `a982e22` → `954124f`(씬) → `53f226d`
 
 ### 시작 상태
 - 링 11 + 정중선 기둥 7 + 손, 194 정점 / 384 삼각형. 쇄골~머리 완료.
@@ -94,6 +94,11 @@
 
 **3. 씬 (`954124f`)** — 옛 constants(링에 d 앵커 없음)는 `rebuild cage` 전에 `ring_corners`에서 예외 — 의도된 fail-loud, 방어 코드 없음.
 
+**4. 척추 세부 링 (`53f226d`)** — Spine(허리)과 Spine3(sternum mid) 사이에 가로대가 없어 배·아랫가슴 깊이가 보간이었다. Spine1·Spine2에 `spine`과 같은 가로 joint 링 + 정중선 기둥 하나씩.
+- 몸통 반판 10점: `arm·hi → arm·lo → spine2·hi → spine1·hi → spine·hi → spine·mid → spine1·mid → spine2·mid → sternum → neck` — 가로대가 sternum·spine2·spine1·spine 관절마다 하나. 정중선 사슬은 crown → head → neck → sternum → spine2 → spine1 → spine → crotch. 척추 마디 길이 편집이 그 구간만 늘인다.
+- 튠 `spine1/2 front/back`(초기 0). 232 정점 / 460 삼각형. 슬롯 번호가 바뀌어 `rebuild cage` 필수.
+- 확인할 것: Spine2 관절이 겨드랑이(arm·lo ≈ Spine3 높이) 아래인지 — 위라면 spine2·hi–arm·lo 옆판이 접힌다.
+
 ### 작업 방식
 - 지난 세션과 같다(슬라이더 → 표). 토폴로지는 매번 파이썬으로 재현해 닫힘·Euler 검사(열린 간선 = 손목 사각형 2개만이면 손이 닫음), 컴파일은 `dotnet build`. containment·self-collision·deform은 에디터에서 사람이.
 
@@ -109,6 +114,7 @@
 | head `front` / `back` | 0.005 / −0.04 |
 | crown `front` / `back` | 0.01 / 0.004 |
 | spine `front` / `back` | 0.01 / 0 |
+| spine1 · spine2 `front` / `back` | 0 / 0 (미튠) |
 | `crotch drop` / `hip out` | 0.08 / 0.93 |
 | pelvis `front` / `back` | 0 / 0.006 |
 | knee `out` / `back` | 0.004 / 0.02 |
@@ -121,4 +127,5 @@
 - ankle의 측정 창이 joint slab(종아리 뼈 × 0.25)이라 정강이·발볼 살까지 단면에 들어온다 — 헐거우면 전용 창. toe·tip 위쪽·폭에는 여유 열 없음. tip 위끝이 발가락 살 전체의 up 최대라 뚜껑이 발볼 높이.
 - 골반 판 깊이가 Hips·UpLeg 살 전체 구간이라 crotch 정점도 엉덩이 깊이 — 안쪽 허벅지 벽이 헐거우면 crotch만의 깊이로.
 - `L/R hip` 높이는 `hip out` 하나로 옆·위가 함께 정해진다 — 따로 필요하면 up 오프셋 열.
-- 이전 항목 그대로: 승모근 능선 측정 창, `neck mid` 깊이, 두께 driver, 척추 세부 링, 자기겹침 스윕 — cage.md §9.
+- spine1·spine2 링 튠(배·아랫가슴 깊이), spine2와 arm·lo의 높이 순서 확인.
+- 이전 항목 그대로: 승모근 능선 측정 창, `neck mid` 깊이, 두께 driver, 자기겹침 스윕 — cage.md §9.
