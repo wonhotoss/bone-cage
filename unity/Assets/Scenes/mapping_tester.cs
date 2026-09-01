@@ -3,7 +3,10 @@ using System.Linq;
 using UnityEngine;
 
 #if UNITY_EDITOR
+using System;
+using System.IO;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 #endif
 
 public class mapping_tester : MonoBehaviour{
@@ -179,19 +182,25 @@ public class mapping_tester : MonoBehaviour{
         Debug.Log($"cage: bound {rest_pts.Length} vertices to the rest cage through {coords} in {clock.ElapsedMilliseconds} ms");
     }
 
+    // The rest mesh mapped through the given cage, in rig space: what the body *is* at the lengths
+    // that built that cage. No skinning is involved anywhere in this pipeline -- the skeleton drives
+    // the cage and the cage drives the mesh -- so this is the body the containment check measures too.
+    public Vector3[] mapped(Vector3[] live){
+        // The dropdown is a plain field with no hook, so a method switch surfaces here.
+        if(bound == null || bound.coords != coords){
+            bind();
+        }
+        return cage_deform.map(bound, live);
+    }
+
     // Map the mesh through the cage: rest cage -> current cage, straight into the target's vertex
     // buffer. The bind holds the rest side, so this reads nothing of the target's own output and
     // can be re-run after any length edit or with any coordinates without compounding.
     // The buffer holds the rest shape, so the viewport still shows this skinned by the *old* rest
     // pose -- the length edit applied twice -- until refresh_rest_pose rebinds it.
     public void deform(){
-        // The dropdown is a plain field with no hook, so a method switch surfaces here.
-        if(bound == null || bound.coords != coords){
-            bind();
-        }
-
         var lengths = measure().ToDictionary(b => b.joint, b => b.native_length);
-        var moved = cage_deform.map(bound, cage.points(lengths, constants));
+        var moved = mapped(cage.points(lengths, constants));
 
         var to_bind = bind_to_rig.inverse;
         var mesh = target.sharedMesh;
@@ -223,6 +232,52 @@ public class mapping_tester : MonoBehaviour{
         deform();
         refresh_rest_pose();
     }
+
+#if UNITY_EDITOR
+    // Everything tools/cage_sweep needs to run the containment and self-collision checks outside
+    // Unity: the baked constants, the rest mesh in rig space, each vertex's dominant joint so an
+    // escape can be named after the body part it belongs to, and the joints the sliders edit so a
+    // sweep covers exactly the bones this tester supports. The sweep compiles cage.cs and
+    // cage_deform.cs themselves and binds its own coordinates, so no weights and nothing derived
+    // travels -- press this again after any rebake and the sweep is current.
+    public void export_sweep_data(){
+        var dir = Path.GetFullPath(Path.Combine(Application.dataPath, "../../tools/cage_sweep/data"));
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, "constants.json"), JsonUtility.ToJson(constants, true));
+        // The finger names repeat between the hands, so the group qualifies them.
+        File.WriteAllLines(Path.Combine(dir, "bones.txt"),
+            anatomy.Select(e => $"{e.joint}\t{(e.group == "" ? e.name : $"{e.group} {e.name}")}"));
+
+        var to_rig = bind_to_rig;
+        var mesh = source.sharedMesh;
+        var slot = source.bones.Select(b => Array.IndexOf(constants.joint_name, b.name)).ToArray();
+
+        using(var f = new BinaryWriter(File.Create(Path.Combine(dir, "rest.bin")))){
+            f.Write(mesh.vertexCount);
+            foreach(var v in mesh.vertices){
+                var p = to_rig.MultiplyPoint3x4(v);
+                f.Write(p.x);
+                f.Write(p.y);
+                f.Write(p.z);
+            }
+            foreach(var w in mesh.boneWeights){
+                f.Write(slot[cage.dominant_bone(w)]);
+            }
+        }
+        Debug.Log($"cage: sweep data for {mesh.vertexCount} vertices written to {dir}");
+    }
+
+    // The same export without opening the editor, so refreshing a sweep is one command:
+    //   Unity.exe -batchmode -quit -projectPath unity -executeMethod mapping_tester.export_headless
+    // Nobody is here to press "rebuild cage", so it bakes first: the sweep then measures the cage
+    // the current sources and the current tune make, which is the one worth sweeping.
+    static void export_headless(){
+        var tester = EditorSceneManager.OpenScene("Assets/Scenes/main.unity")
+            .GetRootGameObjects().SelectMany(g => g.GetComponentsInChildren<mapping_tester>(true)).Single();
+        tester.constants = cage.bake(tester.source, tester.tune);
+        tester.export_sweep_data();
+    }
+#endif
 
     void OnDrawGizmosSelected(){
         if(cage_view != null && cage_view.sharedMesh != null){
@@ -475,8 +530,14 @@ public class mapping_tester : MonoBehaviour{
 
                 if(mapping.constants != null && GUILayout.Button("check containment")){
                     var lengths = mapping.measure().ToDictionary(b => b.joint, b => b.native_length);
-                    mapping.outside_points = cage.find_outside(mapping.source, mapping.target, lengths, mapping.constants).ToArray();
-                    Debug.Log($"cage: {mapping.outside_points.Length} / {mapping.source.sharedMesh.vertexCount} mesh vertices outside");
+                    var live = cage.points(lengths, mapping.constants);
+                    var moved = mapping.mapped(live);
+                    mapping.outside_points = cage.outside(moved, live, mapping.constants.tris).Select(i => moved[i]).ToArray();
+                    Debug.Log($"cage: {mapping.outside_points.Length} / {moved.Length} mesh vertices outside");
+                }
+
+                if(mapping.constants != null && GUILayout.Button("export sweep data")){
+                    mapping.export_sweep_data();
                 }
 
                 if(mapping.constants != null && GUILayout.Button("check self-collision")){

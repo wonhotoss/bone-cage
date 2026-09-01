@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The sweep compiles the cage's own sources rather than a copy of them, so there is no second
+       implementation to drift: whatever the editor bakes and draws is what this checks. cage.cs and
+       cage_deform.cs use UnityEngine only for Vector3, Mathf and Debug.Assert, all of which are
+       plain managed code in CoreModule and run with no engine behind them. -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <AssemblyName>cage_sweep</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <!-- The checks live behind cage.cs's editor guard; outside Unity that guard is where they are. -->
+    <DefineConstants>UNITY_EDITOR</DefineConstants>
+    <!-- The project's names are lower case on purpose. -->
+    <NoWarn>CS8981</NoWarn>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+  </PropertyGroup>
+
+  <!-- Override with -p:unity_managed=... for another editor version. -->
+  <PropertyGroup>
+    <unity_managed Condition="'$(unity_managed)' == ''">C:\Program Files\Unity\Hub\Editor\6000.4.10f1\Editor\Data\Managed\UnityEngine</unity_managed>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="sweep.cs" />
+    <Compile Include="..\..\unity\Assets\Scenes\cage.cs" />
+    <Compile Include="..\..\unity\Assets\Scenes\cage_deform.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(unity_managed)\UnityEngine.CoreModule.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+</Project>

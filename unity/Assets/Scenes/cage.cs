@@ -823,7 +823,7 @@ public static class cage{
         return flesh;
     }
 
-    static int dominant_bone(BoneWeight w){
+    public static int dominant_bone(BoneWeight w){
         var b = w.boneIndex0;
         var m = w.weight0;
         if(w.weight1 > m){ b = w.boneIndex1; m = w.weight1; }
@@ -912,40 +912,13 @@ public static class cage{
             .Sum(t => (double)Vector3.Dot(v[tris[t * 3]], Vector3.Cross(v[tris[t * 3 + 1]], v[tris[t * 3 + 2]]))) / 6.0;
     }
 
-    // Containment check against the current (deformed) cage: the rig-space positions of every
-    // skinned mesh vertex that falls outside the shell. The mesh is skinned to the live bones, so
-    // both mesh and cage follow the current lengths. (Until cage-based mesh deformation exists the
-    // mesh skins by LBS, which the cage does not match -- so escapes here are expected, and this
-    // coarse a cage escapes a lot.) Geometry (bind-space verts/weights/bindposes) is read from geo
-    // -- always readable -- while the live bones come from pose; the two are identical-topology
-    // clones sharing bone order.
-    public static List<Vector3> find_outside(SkinnedMeshRenderer geo, SkinnedMeshRenderer pose, IReadOnlyDictionary<string, float> lengths, cage_constants k){
-        var root = pose.rootBone;
-        var mesh = geo.sharedMesh;
-        var bones = pose.bones;
-        var binds = mesh.bindposes;
-        var weights = mesh.boneWeights;
-        var verts = mesh.vertices;
-
-        var cage_verts = points(lengths, k);
-
-        var outside = new List<Vector3>();
-        for(var i = 0; i < verts.Length; i++){
-            var p = root.InverseTransformPoint(skinned(verts[i], weights[i], bones, binds));
-            if(!inside(p, cage_verts, k.tris)){
-                outside.Add(p);
-            }
-        }
-        return outside;
-    }
-
-    // Linear blend skinning of one vertex to the live pose, in world space.
-    static Vector3 skinned(Vector3 v, BoneWeight w, Transform[] bones, Matrix4x4[] binds){
-        Vector3 bone(int b){
-            return bones[b].localToWorldMatrix.MultiplyPoint3x4(binds[b].MultiplyPoint3x4(v));
-        }
-        return bone(w.boneIndex0) * w.weight0 + bone(w.boneIndex1) * w.weight1
-            + bone(w.boneIndex2) * w.weight2 + bone(w.boneIndex3) * w.weight3;
+    // Containment: which of the given points fall outside the shell. The body at a set of bone
+    // lengths is the rest mesh mapped through the cage those lengths build, so both arguments come
+    // out of the same lengths and the check is a pure function of them -- the inspector button runs
+    // it on the current lengths, the sweep in tools/cage_sweep headless over thousands of them.
+    // This coarse a cage escapes at rest already, so what a sweep reads is the change from that.
+    public static List<int> outside(Vector3[] pts, Vector3[] cage_verts, int[] tris){
+        return Enumerable.Range(0, pts.Length).Where(i => !inside(pts[i], cage_verts, tris)).ToList();
     }
 
     // The cage is a closed shell, so an odd crossing count along any ray means the point is in.
