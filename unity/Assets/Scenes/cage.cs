@@ -91,6 +91,14 @@ public class cage_constants{
     public cage_ring[] rings;
     public cage_post[] posts;       // the midline, then the hands, after the ring corners in the vertex order
     public int[] tris;              // indices into 4*rings.Length + 2*posts.Length vertices
+
+    // Vertex pairs: the edges the topology tables declare, which tris alone cannot give back. Each
+    // consecutive pair of posts along a plate's outline or a wall's chain is a ring of the shell --
+    // the tilted hip ring is the crotch post beside an outer hip post, the shoulder ring is a
+    // deltoid post beside an arm ring's armpit edge -- while what the ladder adds to fill the panels
+    // between them, its rungs and the diagonal splitting each quad, no row of any table names.
+    // Triangulating loses the difference, so the pairs are kept. Read by the debug wire (frame).
+    public int[] grid;
 }
 
 #if UNITY_EDITOR
@@ -773,7 +781,7 @@ public static class cage{
             posts = posts.ToArray(),
         };
         var rest_points = control_points(k, rest);
-        k.tris = topology(plates, walls, rest_points, side);
+        (k.tris, k.grid) = topology(plates, walls, rest_points, side);
 
         // The panels are traced in one consistent sense, but which sense faces outward depends on
         // the rig's axes. The enclosed volume settles it: the root sits inside the cage.
@@ -843,7 +851,7 @@ public static class cage{
     // the other way. So does the back of a plate against its front, which is the same reversal --
     // then a quad folds along the same two control points on both faces. Which side a face is on is
     // read off its rest centroid; no face straddles the midline, since every plate splits there.
-    static int[] topology(IEnumerable<(int hi, int lo)[]> plates, IEnumerable<(int hi, int lo)[]> walls, Vector3[] at, Vector3 side){
+    static (int[] tris, int[] grid) topology(IEnumerable<(int hi, int lo)[]> plates, IEnumerable<(int hi, int lo)[]> walls, Vector3[] at, Vector3 side){
         var tris = new List<int>();
 
         bool mirrored(IEnumerable<int> face){
@@ -873,7 +881,22 @@ public static class cage{
             .ToArray();
         Debug.Assert(edges.Distinct().Count() == edges.Length, "cage: faces overlap or are traced against each other");
         Debug.Assert(edges.All(e => edges.Contains((e.b, e.a))), "cage: faces do not close the shell");
-        return tris.ToArray();
+
+        // The tables' own edges, kept because triangulating loses them (see cage_constants.grid):
+        // consecutive posts along a chain, joined at each of their two ends. A plate's outline is a
+        // closed loop, a wall's chain runs open. A post across is a ring's own side or a post's
+        // segment, which the rings and posts already give, so it stays out.
+        IEnumerable<(int, int)> chain((int hi, int lo)[] posts, bool closed){
+            return Enumerable.Range(0, closed ? posts.Length : posts.Length - 1).SelectMany(i => {
+                var next = posts[(i + 1) % posts.Length];
+                return new[]{ (posts[i].hi, next.hi), (posts[i].lo, next.lo) };
+            });
+        }
+        var grid = plates.SelectMany(p => chain(p, true)).Concat(walls.SelectMany(w => chain(w, false)))
+            .Select(e => (a: Mathf.Min(e.Item1, e.Item2), b: Mathf.Max(e.Item1, e.Item2))).Distinct()
+            .SelectMany(e => new[]{ e.a, e.b }).ToArray();
+
+        return (tris.ToArray(), grid);
     }
 
     static int corner(int ring, edge e, bool front){
@@ -966,11 +989,13 @@ public static class cage{
         return hit.ToList();
     }
 
-    // Debug view: the edges this document itself declares -- every ring's rectangle and every
-    // post's segment. The corner constants run round the rectangle in order, so a ring is the
-    // 4-cycle over its own four vertices. Everything else in the shell is a panel the topology
-    // triangulates, and the diagonal splitting each of its quads answers to no row of any table, so
-    // a wire drawn from these alone reads as the recipe rather than as the mesh.
+    // Debug view: the edges this document itself declares -- every ring, every post, and the grid
+    // the topology tables lay between them (cage_constants.grid). A ring is a rectangle over four
+    // vertices, and the corner constants run round it in order; a finger ring is two posts under one
+    // name; a branch ring -- hip beside crotch, deltoid beside armpit -- is two posts the tables put
+    // side by side, which is why the grid is needed to see it. What the ladder adds to fill the
+    // panels, its rungs and one diagonal per quad, answers to no row of any table and stays out, so
+    // a wire drawn from this reads as the recipe rather than as the mesh.
     public static IEnumerable<(int a, int b)> frame(cage_constants k){
         // Consecutive pairs round a closed outline; two vertices are the one edge between them.
         IEnumerable<(int, int)> loop(int[] v){
@@ -993,7 +1018,10 @@ public static class cage{
                 : new[]{ end(p[0], post_hi), end(p[0], post_lo), end(p[1], post_lo), end(p[1], post_hi) });
         });
 
-        return rings.Concat(posts);
+        var grid = Enumerable.Range(0, k.grid.Length / 2).Select(i => (k.grid[i * 2], k.grid[i * 2 + 1]));
+
+        return rings.Concat(posts).Concat(grid)
+            .Select(e => (a: Mathf.Min(e.Item1, e.Item2), b: Mathf.Max(e.Item1, e.Item2))).Distinct();
     }
 
     // Debug view: the vertices behind each name the constants carry, ring corners and post ends
