@@ -966,6 +966,36 @@ public static class cage{
         return hit.ToList();
     }
 
+    // Debug view: the edges this document itself declares -- every ring's rectangle and every
+    // post's segment. The corner constants run round the rectangle in order, so a ring is the
+    // 4-cycle over its own four vertices. Everything else in the shell is a panel the topology
+    // triangulates, and the diagonal splitting each of its quads answers to no row of any table, so
+    // a wire drawn from these alone reads as the recipe rather than as the mesh.
+    public static IEnumerable<(int a, int b)> frame(cage_constants k){
+        // Consecutive pairs round a closed outline; two vertices are the one edge between them.
+        IEnumerable<(int, int)> loop(int[] v){
+            return Enumerable.Range(0, v.Length == 2 ? 1 : v.Length).Select(i => (v[i], v[(i + 1) % v.Length]));
+        }
+
+        int end(int post, int e){
+            return k.rings.Length * 4 + post * 2 + e;
+        }
+
+        var rings = k.rings.SelectMany((r, i) => loop(Enumerable.Range(i * 4, 4).ToArray()));
+
+        // A finger ring is two posts under one name, so its four vertices close a rectangle the way
+        // a body ring's do -- across each post, then along the ring's two sides. The midline, the
+        // pelvis, the shoulders and the palm carry one post each, which is an edge on its own.
+        var posts = Enumerable.Range(0, k.posts.Length).GroupBy(i => k.posts[i].name).SelectMany(g => {
+            var p = g.ToArray();
+            return loop(p.Length == 1
+                ? new[]{ end(p[0], post_hi), end(p[0], post_lo) }
+                : new[]{ end(p[0], post_hi), end(p[0], post_lo), end(p[1], post_lo), end(p[1], post_hi) });
+        });
+
+        return rings.Concat(posts);
+    }
+
     // Debug view: the vertices behind each name the constants carry, ring corners and post ends
     // alike. The two posts of a finger ring share a name, so a finger ring reads as one group too.
     public static IEnumerable<(string name, int[] verts)> named(cage_constants k){

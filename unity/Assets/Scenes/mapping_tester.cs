@@ -17,6 +17,12 @@ public class mapping_tester : MonoBehaviour{
     [HideInInspector] public cage_constants constants;
     public MeshFilter cage_view;
 
+    // Scene view: draw the whole triangulation instead of only the edges cage.md declares. What the
+    // tuning sliders move is exactly a ring's edges and a post's ends, so the recipe's own frame is
+    // the view to tune against; the panels' quad diagonals bury it. Turn this on to read the shell
+    // as a surface -- containment and self-collision are about the surface.
+    public bool all_edges;
+
 #if UNITY_EDITOR
     // Recipe values still being searched for; the inspector's tuning sliders write here and
     // rebake. Drawn by the inspector's cage section, not the default one.
@@ -279,6 +285,7 @@ public class mapping_tester : MonoBehaviour{
     }
 #endif
 
+#if UNITY_EDITOR
     void OnDrawGizmosSelected(){
         if(cage_view != null && cage_view.sharedMesh != null){
             // The cage child is identity-local under the rig root, so everything below shares
@@ -286,7 +293,15 @@ public class mapping_tester : MonoBehaviour{
             Gizmos.matrix = cage_view.transform.localToWorldMatrix;
 
             Gizmos.color = new Color(0.2f, 0.9f, 1f);
-            Gizmos.DrawWireMesh(cage_view.sharedMesh);
+            if(all_edges){
+                Gizmos.DrawWireMesh(cage_view.sharedMesh);
+            }
+            else{
+                var frame = cage_view.sharedMesh.vertices;
+                foreach(var e in cage.frame(constants)){
+                    Gizmos.DrawLine(frame[e.a], frame[e.b]);
+                }
+            }
 
             // Panels in self-collision, outlined on the live cage.
             if(collide_tris != null){
@@ -300,7 +315,7 @@ public class mapping_tester : MonoBehaviour{
                 }
             }
 
-            // Skinned mesh vertices that escaped the current cage.
+            // Mapped mesh vertices that escaped the current cage.
             if(outside_points != null){
                 Gizmos.color = Color.red;
                 var r = target.localBounds.size.magnitude * 0.004f;
@@ -310,6 +325,7 @@ public class mapping_tester : MonoBehaviour{
             }
         }
     }
+#endif
 
 #if UNITY_EDITOR
     [CustomEditor(typeof(mapping_tester))]
