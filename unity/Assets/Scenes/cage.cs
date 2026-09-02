@@ -51,6 +51,9 @@ public class cage_ring{
     public Vector3 s;           // in-plane axis the front/back silhouette runs along
     public Vector3 d;           // in-plane axis separating the front and back panels
     public float along_hi, along_lo;    // each edge's offset past its farthest anchor, along n; unequal on a tilted ring
+    public int[] hold_hi, hold_lo;      // posts each edge stays level with along n at the very least, so a
+                                        // ring whose anchors sink past them opens into a V rather than
+                                        // crossing them; empty when nothing holds that edge
     public float s_lo, s_hi;    // reach beyond the anchors' span, on the -s and +s side
     public float hi_front, lo_front;    // each corner's reach along d past its depth anchors:
     public float hi_back, lo_back;      // front past their max, back past their min
@@ -159,7 +162,10 @@ public static class cage{
 
     // Ring corners first, then post ends: the vertex order the topology tables are written against.
     static Vector3[] control_points(cage_constants k, Vector3[] jc){
-        return ring_corners(k, jc).Concat(post_ends(k, jc)).ToArray();
+        // Posts first: a post reads nothing but the joint centers, while a ring edge can be held
+        // level with one, so the dependency runs one way and no cycle is possible.
+        var posts = post_ends(k, jc);
+        return ring_corners(k, jc, posts).Concat(posts).ToArray();
     }
 
     // The same control points wrapped in the fixed-topology mesh, for display.
@@ -193,15 +199,23 @@ public static class cage{
     // The ring axes are orthonormal, so summing the three components rebuilds a corner exactly.
     // Each silhouette edge is placed along n by its own anchors; the depth extent is shared by both
     // edges, which keeps the four corners planar however far the two edges drift apart.
-    static Vector3[] ring_corners(cage_constants k, Vector3[] jc){
+    static Vector3[] ring_corners(cage_constants k, Vector3[] jc, Vector3[] held){
         var verts = new Vector3[k.rings.Length * 4];
         for(var i = 0; i < k.rings.Length; i++){
             var r = k.rings[i];
             var a_hi = r.anchor_hi.Select(j => jc[j]).ToArray();
             var a_lo = r.anchor_lo.Select(j => jc[j]).ToArray();
 
-            var plane_hi = r.n * (a_hi.Max(p => Vector3.Dot(p, r.n)) + r.along_hi);
-            var plane_lo = r.n * (a_lo.Max(p => Vector3.Dot(p, r.n)) + r.along_lo);
+            // An edge sits at its own anchors plus its reach, but no nearer along n than the posts
+            // holding it -- both ends of such a post count, so a tilted one holds by its far end.
+            // With nothing holding it the anchors' own reach stands.
+            float outermost(int[] hold, float reach){
+                return hold.Aggregate(reach, (m, p) => Mathf.Max(m, Mathf.Max(
+                    Vector3.Dot(held[p * 2 + post_hi], r.n), Vector3.Dot(held[p * 2 + post_lo], r.n))));
+            }
+
+            var plane_hi = r.n * outermost(r.hold_hi, a_hi.Max(p => Vector3.Dot(p, r.n)) + r.along_hi);
+            var plane_lo = r.n * outermost(r.hold_lo, a_lo.Max(p => Vector3.Dot(p, r.n)) + r.along_lo);
             var edge_hi = r.s * (a_hi.Max(p => Vector3.Dot(p, r.s)) + r.s_hi);
             var edge_lo = r.s * (a_lo.Min(p => Vector3.Dot(p, r.s)) - r.s_lo);
 
@@ -496,6 +510,8 @@ public static class cage{
                 d = r.d,
                 along_hi = past + r.outward_hi / scale,
                 along_lo = past + r.outward_lo / scale,
+                hold_hi = new int[0],
+                hold_lo = new int[0],
                 s_lo = lo.Min(j => Vector3.Dot(rest[j], r.s)) - lo_s + r.lo / scale,
                 s_hi = hi_s - hi.Max(j => Vector3.Dot(rest[j], r.s)) + r.hi / scale,
                 hi_front = hi_d - anchors.Max(p => Vector3.Dot(p, r.d)) + r.front.hi / scale,
@@ -532,7 +548,9 @@ public static class cage{
         // ring whose band it closes, so it stays level with that ring's edges however they move.
         // On a ring across the body: exactly at the midpoint of its edges, anchored on the joint
         // that places them and offset by whatever the rest midpoint is off that joint.
-        var rest_corners = ring_corners(new cage_constants{ rings = rings }, rest);
+        // No ring is held off a post yet -- the pelvis attaches that below, once the posts it names
+        // have been made -- so the rest corners need none.
+        var rest_corners = ring_corners(new cage_constants{ rings = rings }, rest, new Vector3[0]);
         void midline(int slot, string joint){
             var r = rings[slot];
             var anchor = js(joint);
@@ -573,6 +591,16 @@ public static class cage{
         at[(hip, edge.mid)] = pelvis_post("crotch", new[]{ hips }, new[]{ 1f }, -drop);
         at[(hip, edge.hi)] = pelvis_post("L hip", js("LeftUpLeg", "Hips"), new[]{ 1f + f, -f }, drop * f);
         at[(hip, edge.lo)] = pelvis_post("R hip", js("RightUpLeg", "Hips"), new[]{ 1f + f, -f }, drop * f);
+
+        // The spine ring hangs on the Spine joint, which the pelvis bone carries down; the hips hang
+        // on UpLeg and Hips, which that bone does not move. Shorten the pelvis far enough and the
+        // ring's two sides sink past the hips beside them, and the pelvis panel folds up through the
+        // torso -- what the length sweep found first. So each side is held level with the hip the
+        // tables pair it with, while the midline post goes on following the joint: seen from the
+        // front the ring is a level bar, then flattens onto the hips, then opens into a V with
+        // spine mid at its floor. The hips themselves are untouched. `[N16]`
+        rings[spine].hold_hi = new[]{ at[(hip, edge.hi)] };
+        rings[spine].hold_lo = new[]{ at[(hip, edge.lo)] };
 
         // One foot, past its ankle ring. The sole is level: the toe ring's bottom edge and the tips'
         // lower ends sit at the height of the ankle ring's bottom -- the heel -- and hang on the
