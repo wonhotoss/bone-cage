@@ -59,7 +59,7 @@
 | `R arm` | RightArm | RightShoulder | −side | up | depth | joint | 튠 / 튠 | 튠 / 튠 | 튠(§7) | 튠(§7) | 튠(§7) | 튠(§7) | `[N2]`. 모든 여유 튠 중(§7) |
 | `R elbow` | RightForeArm | RightArm | −side | up | depth | joint | | | 튠(§7, 초기 0.05) | | | | L elbow와 공통 |
 | `R wrist` | RightHand | RightHand | −side | up | depth | joint | | | | | | | §4a |
-| `spine` | Spine | Hips | +up | side | depth | joint | 0 | 0 | | | | | 몸통 판의 아랫변, 허리. 아래는 골반 기둥 §3c `[N13]`. `front`·`back`은 튠 중(§7) |
+| `spine` | Spine | Hips | +up | side | depth | joint | 0 | 0 | | | | | 몸통 판의 아랫변, 허리. 아래는 골반 기둥 §3c `[N13]`. **두 변이 각각 옆의 고관절 기둥에 걸린다**(`hold_hi` = `L hip`, `hold_lo` = `R hip`) — pelvis를 줄이면 가로일자에서 V로 열린다 `[N16]`. `front`·`back`은 튠 중(§7) |
 | `spine1` | Spine1 | Hips | +up | side | depth | joint | 0 | 0 | | | | | 배. 몸통 판의 가로대 하나 `[N10]`. `front`·`back` 튠 중(§7) |
 | `spine2` | Spine2 | Hips | +up | side | depth | joint | 0 | 0 | | | | | 아랫가슴. 〃 |
 | `L knee` | LeftLeg | LeftUpLeg | −up | side | depth | joint | | 튠(§7, 초기 0.1) | 튠(§7) | | | | 자기 다리 살만 잰다 `[N13]`. `hi` = 바깥쪽 변 |
@@ -77,6 +77,7 @@ ankle의 `↷`는 `n`의 기준이 `−up`이라 `n = −cos·up + sin·depth`, 
 `along_hi = (cap ? (max(살·n) − 평면)·(1+margin) : 0) + outward_hi`, `along_lo = 〃 + outward_lo` — arm 링은 hi 변만 안쪽으로 들여 승모근 위에 얹는다 `[N11]`,
 `s_hi = hi_s − max(hi앵커·s) + hi`, `s_lo = min(lo앵커·s) − lo_s + lo`,
 코너별 깊이 `{hi,lo}_front = hi_d − max(앵커·d) + front.{hi,lo}`, `{hi,lo}_back = min(앵커·d) − lo_d + back.{hi,lo}`. d 앵커(`d_hi_anchor`/`d_lo_anchor`) = 앵커 전체; toe 링만 뒤(바닥)의 d 앵커를 Foot으로 덮어쓴다(§3d).
+`hold_hi`/`hold_lo`(변별 걸림 기둥)는 기본 빈칸이고, 그 기둥이 만들어진 뒤에 붙인다 — 지금은 spine 링뿐 `[N16]`.
 
 ### 3b. 정중선 기둥 — `midline(slot, joint)`, `post(...)`
 
@@ -258,8 +259,8 @@ ankle의 `↷`는 `n`의 기준이 `−up`이라 `n = −cos·up + sin·depth`, 
 
 순수 함수: 편집 길이 → FK 관절 `jc` → 제어점.
 
-**링** (`ring_corners`): 변별로 자기 앵커만 본다.
-`plane_hi = n·(max(hi앵커·n) + along_hi)`, `plane_lo = n·(max(lo앵커·n) + along_lo)`,
+**링** (`ring_corners`): 변별로 자기 앵커만 본다. 기둥이 링보다 먼저 놓인다 — 기둥은 관절 중심만 읽고 링 변은 기둥에 걸릴 수 있으므로 의존이 한 방향이다.
+`plane_hi = n·max(max(hi앵커·n) + along_hi, max_{p ∈ hold_hi} max(p의 두 끝·n))`, `plane_lo` 도 같다 — 걸림 기둥이 없으면 앞 항만 남는다 `[N16]`,
 `edge_hi = s·(max(hi앵커·s) + s_hi)`, `edge_lo = s·(min(lo앵커·s) − s_lo)`,
 깊이는 d 앵커의 구간에 코너별 여유: `front = d·(max(d_hi앵커·d) + c_front)`, `back = d·(min(d_lo앵커·d) − c_back)` (c = hi, lo 변; d 앵커는 보통 양 변 앵커 전체).
 코너 = plane + edge + 깊이. 좌우 변이 독립이라 공용 링은 기울 수 있고, 두 변이 `d`에 평행이라 네 점은 항상 한 평면 `[N1]`.
@@ -314,6 +315,7 @@ dotnet run -c Release --project tools/cage_sweep
 - **[N13] 골반은 손바닥처럼 분기한다.** 양다리를 한 프리즘에 넣고 정중선으로만 가르면 가랑이와 안쪽 허벅지가 공기층에 놓이고, 공용 링은 한 다리 편집에 반대 다리를 끌어간다. 두 다리가 각자 링을 가지되 가랑이에서 **만나야** 하므로 고관절 링은 링(정점 4, 공유 불가)이 아니라 손의 분기 링처럼 **이웃한 기둥 둘**이다: `crotch`를 양쪽이 공유하고 바깥 점 `L/R hip`은 각자. crotch→UpLeg 직선을 UpLeg 너머로 `hip out`배 연장하면 고관절 바깥 실루엣 근처에 닿고, 이 세 점과 depth가 한 평면이라 고관절 링은 사타구니 주름처럼 안쪽 아래(crotch)에서 바깥 위(hip)로 기울어 다리를 감싼다. 앞에서 보면 두 링이 V, 위의 spine 링과 함께 손등 같은 5각형 = 골반 판(정중선 규약대로 spine·mid–crotch에서 반판 둘). 바깥 점을 `(1+f)·UpLeg − f·Hips`의 아핀 결합으로 두는 것은 손가락 endbone과 같은 수법이라, 고관절 폭 편집에 링이 옆으로 넓어진다. 몸통 판의 아랫변은 hip 링 대신 **spine 링**(Spine 관절, 허리)이 되어 sternum·arm과 이어진다. 세 기둥은 손의 판 두께처럼 골반 살의 depth 구간 하나를 공유해 골반 판이 평평한 판으로 남는다. 무릎·발바닥 링은 자기 다리 살만 재므로(`wrap` = 그 다리의 UpLeg/Foot) 두 다리가 붙어 서도 안쪽 변이 서로를 넘지 않는다 — 극단 길이에서의 자기겹침은 `check self-collision`으로 본다.
 - **[N14] 발은 프레임이 돌아가는 관이다.** 발바닥 캡 하나로는 발이 종아리 프리즘의 바닥면일 뿐이라 발등·뒤꿈치·발가락이 전부 밖에 놓였다. 발을 다리와 90° 꺾인 사지로 보아 링을 셋 둔다: **ankle**은 Foot 관절을 지나되 수평이 아니라 뒤로 기울어진 링 — 수평이면 뒤꿈치 아래와 발등 위를 동시에 자르지만, 뒤꿈치 바닥에서 발등–정강이 연결부로 기울이면 종아리 관과 발 관을 가르는 자연스러운 단면이 된다(기울기는 튠). **toe**는 ToeBase에서 발 방향(`depth`)에 직교하는 세로 링으로 발볼을 감싼다. **tip**은 손가락 끝처럼 관절 없는 endbone 위의 기둥 쌍(`(1+f, −f)`·(ToeBase, Foot))이라 발 길이에 비례해 따라 나가는 뚜껑이다. 프레임의 `d`가 knee의 `depth` → ankle의 `depth↷tilt` → toe·tip의 `up`으로 연속해서 돌므로 링 코드는 그대로이고, 앞판이 정강이에서 발등으로, 뒷판이 종아리에서 뒤꿈치·발바닥으로 이어진다 — 옆판은 발의 안·바깥 측면. ankle의 측정 창은 joint slab(종아리 뼈 길이 × 0.25)이라 기울어진 평면 근처의 정강이·발 살을 함께 잡는다; 좁혀야 하면 ankle 전용 창을 둔다. **발바닥은 평평하다**: toe 링의 아랫변과 tip의 아랫끝은 살을 재지 않고 ankle 링의 바닥(뒤꿈치, `back` 여유 포함) 높이를 따른다 — d 앵커를 Foot으로 두고 그 높이 차를 여유로 굽는다. 그래서 발 뼈를 늘이거나 기울여도 발바닥은 뒤꿈치와 한 평면이고, ankle `back` 하나가 발 전체의 바닥을 정한다.
 - **[N15] 어깨는 팔 링과 겨드랑이를 공유하는 V.** arm 링의 윗변이 승모근 위로 들어간 뒤(N11) 상완 판의 윗변은 승모근 점에서 팔꿈치 위까지 한 직선이 되어, 삼각근 너머 상완 위에 빈 공간이 컸다. 어깨와 상완을 가르는 링을 넣되, 겨드랑이 정점을 arm 링과 **공유**해야 어깨 쐐기가 닫힌다 — 골반의 crotch(N13)와 같은 이유로 링이 아니라 **기둥 하나**(`delt`) + arm 링의 lo 변이 새 링이다. 상완 위 삼각근 끝에 앉힌 `delt`에서 겨드랑이로 내려오는 기울어진 세로 링이 되고, 앞에서 보면 arm 링과 겨드랑이에서 만나는 V. 그 사이는 **삼각형 판** 둘(앞/뒤: arm·hi – delt – arm·lo) + 위쪽 벽 쿼드(arm·hi → delt) = 어깨 쐐기이며, ladder가 홀수 고리를 삼각형으로 끝내도록 넓혔다. `delt`는 (Arm, ForeArm)의 아핀 점이라 상완 길이에 비율로 따라간다.
+- **[N16] 링 변은 기둥에 걸릴 수 있다 — 가로일자에서 V로.** spine 링은 Spine 관절에 걸려 있고 pelvis 뼈(Hips→Spine)가 그것을 내린다. 반면 `L/R hip` 기둥은 UpLeg와 Hips의 아핀 점이라 그 뼈에 움직이지 않는다. 그래서 pelvis를 줄이면 링의 두 변이 옆의 고관절 기둥 아래로 내려가고, 골반 판이 위로 접혀 몸통 판을 뚫는다 — 길이 스윕이 가장 먼저 찾은 실패이며 교차는 pelvis 0.625에서 시작한다(측정). 답은 변별 걸림(`hold_hi`/`hold_lo`): 그 변의 평면은 자기 앵커 + 여유이거나, 그보다 `n`으로 덜 나갔다면 걸림 기둥의 높이. 정중선 기둥(`spine mid`)은 걸리지 않고 계속 관절을 따르므로, 앞에서 본 링은 가로일자 → 고관절 높이에서 평평 → **정중선을 바닥으로 하는 V**로 열린다. 고관절 기둥 자체는 손대지 않는다. 걸림 높이는 pelvis·lumbar와 무관한 상수이므로 이 clamp가 spine 변을 spine1 변 위로 밀어올릴 수는 없다(최악 pelvis 0.5·lumbar 0.5에서 여유 +0.00036 rig 단위, 측정). 기둥 두 끝의 최댓값을 쓰므로 기울어진 기둥은 먼 끝으로 건다.
 - **[N9] cardinal 스냅과 발가락 부호.** rig root 로컬은 월드 정렬이 아니므로 스켈레톤에서 축을 유도하되 cardinal로 스냅해 링을 축 정렬로 유지한다. 외적은 깊이 축만 정하고 앞뒤는 못 정하므로 발가락 방향으로 부호를 정한다.
 
 ## 9. 미결
@@ -321,7 +323,7 @@ dotnet run -c Release --project tools/cage_sweep
 - **두께 driver — "키가 크면 두꺼워진다".** 현재 단면은 rest 살 측정값 + 절대 여유이고 앵커 spread만 길이를 따른다. 단일 사지 링(팔꿈치·손목)은 spread가 0이라 전신을 1.2배 늘여도 팔 굵기가 그대로다. 링마다 단면을 구동하는 뼈(또는 전신 척도)를 선언하는 열이 필요하다: `단면 = rest 단면 × f(driver 길이 / rest)`. §4c endbone이 이 형태의 선례.
 - **V넥 다듬기.** (1) arm·hi의 높이는 아직 어깨 관절 평면에서 잰 삼각근 정점 높이 — 승모근 능선에 딱 맞추려면 변별 측정 창이 필요. (2) 가슴 띠(V–겨드랑이)가 arm 링 깊이로 정해지므로 가슴이 새면 arm 링 `front`/`back` 튠을 되살린다. (3) `neck mid`가 Neck 관절 그 자리라 V가 얕다(arm·hi와 2 cm 차) — 내리는 여유가 필요할 수 있다. (4) head 링의 tilt·offset은 head splitter에서 읽은 초기값(25°, 0.023) — 튠 확정 후 표로 옮기고 씬의 splitter 오브젝트는 지운다.
 - **포함률.** rest에서는 **36,426 정점 전부가 케이지 안**이고 자기겹침도 없다(2026-09-01 §7b 스윕 측정). 제어점이 40 → 236으로 늘면서 초기의 "어깨·배·팔 위아래가 판을 뚫는다" 상태는 해소됐다. 남은 것은 길이 편집 아래의 포함률이고, 그것이 스윕이 재는 값이다. 조여야 할 자리가 나오면 링 추가로 — 토폴로지 표만 늘리면 되고 assertion이 오추적을 막는다.
-- **골반 다듬기.** (1) `crotch drop`·`hip out`·`pelvis front/back`·`spine front/back`은 초기값 — 에디터에서 튠 뒤 표로. (2) 골반 판 깊이가 Hips·UpLeg 살 전체의 구간이라 crotch 정점도 엉덩이 깊이를 갖는다; 안쪽 허벅지 벽이 헐거우면 crotch만의 깊이(가랑이 근처 살)로 좁힌다. (3) 골반 판이 허리 링 깊이 ↔ 골반 깊이 보간이라 엉덩이 최대 돌출이 새면 `pelvis back`으로 받는다. (4) `L/R hip` 높이는 `hip out` 하나로 옆·위가 함께 정해진다 — 따로 필요하면 up 오프셋 열 추가.
+- **골반 다듬기.** (0) spine 링이 고관절을 넘던 자기겹침은 변별 걸림으로 닫았다 `[N16]`; 걸림 높이가 `hip out`·`crotch drop`에 딸리므로 그 둘을 튠하면 §7b 스윕을 다시 돌린다. (1) `crotch drop`·`hip out`·`pelvis front/back`·`spine front/back`은 초기값 — 에디터에서 튠 뒤 표로. (2) 골반 판 깊이가 Hips·UpLeg 살 전체의 구간이라 crotch 정점도 엉덩이 깊이를 갖는다; 안쪽 허벅지 벽이 헐거우면 crotch만의 깊이(가랑이 근처 살)로 좁힌다. (3) 골반 판이 허리 링 깊이 ↔ 골반 깊이 보간이라 엉덩이 최대 돌출이 새면 `pelvis back`으로 받는다. (4) `L/R hip` 높이는 `hip out` 하나로 옆·위가 함께 정해진다 — 따로 필요하면 up 오프셋 열 추가.
 - **어깨 다듬기.** (1) `delt along` 0.4·`delt up` 0은 초기값. (2) `delt`의 살 창은 LeftArm 본의 살만 본다 — 삼각근이 LeftShoulder 본에 지배되면 위끝이 낮게 잡힌다; 그러면 창을 LeftShoulder 살까지 넓힌다. (3) delt 링의 앞/뒤 여유 열 없음(잰 값 + margin).
 - **발 다듬기.** (1) `ankle tilt` 45°·`front`·`back` 0은 초기값. (2) ankle 링의 joint slab이 넓어 발볼·정강이 살까지 단면에 들어올 수 있다 — 단면이 헐거우면 ankle 전용 측정 창(예: 평면 ± 발 두께)으로. (3) toe·tip의 위쪽·폭에는 아직 여유 열이 없다(잰 값 + margin) — 발등이나 발가락 끝이 새면 `front`/`out` 튠 추가. (4) tip의 위끝이 발가락 살 전체의 `up` 최대라 뚜껑이 발볼 높이다; 끝만큼 낮추려면 tip 근처 살로 잰다.
 - **길이 범위 확정.** 스윕(§7b)은 슬라이더 범위인 rest × [0.5, 1.5] 전체를 훑는다. 실제로 지원할 범위가 정해지면 그에 맞춰 좁히고, 범위 밖으로 밀려난 실패는 기록만 남긴다.
