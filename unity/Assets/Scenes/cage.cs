@@ -121,6 +121,8 @@ public class cage_tune{
     public float head_front = 0f, head_back = 0f;   // depth reach of the head ring: chin and occiput
     public float neck_front = 0f;   // how far ahead of the arm rings' top edge the V's floor stands, so
                                     // drawing that edge in over the chest does not drag the throat in with it
+    public float sternum_front = 0f;    // the same on the rung below, at the armpits: how far ahead of the
+                                        // arm rings' bottom edge the sternum stands
     public float crown_front = 0f;  // depth reach of the crown ring: the chest and belly (front) and the
     public float crown_back = 0f;   // shoulder blades (back) sit under the torso panel these two rings span
     public float spine_front = 0f;  // the same on the spine ring, the torso panel's bottom edge
@@ -566,12 +568,12 @@ public static class cage{
         // Between the arm rings' top edges: the bottom of the neck's V on the Neck joint itself, and
         // level with the armpits the sternum, on Spine3. Each closes a rung of the arm rings -- the
         // top edges, the bottom edges -- so it takes that edge's depth, spread over both shoulders.
-        // The V's floor keeps a reach of its own on top of that: the arm rings' top edge is drawn in
-        // over the chest, and without it the throat would come back with the chest.
+        // Both keep a reach of their own on top of that: the arm rings' edges are drawn in over the
+        // chest, and without it the throat and the sternum would come back with them.
         var shoulders = js("LeftArm", "RightArm");
         var arm = rings[arm_hi];
         at[(neck, edge.mid)] = post("neck mid", js("Neck"), new[]{ 1f }, Vector3.zero, depth, shoulders, arm.hi_back, arm.hi_front + tune.neck_front / scale);
-        at[(sternum, edge.mid)] = post("sternum mid", js("Spine3"), new[]{ 1f }, Vector3.zero, depth, shoulders, arm.lo_back, arm.lo_front);
+        at[(sternum, edge.mid)] = post("sternum mid", js("Spine3"), new[]{ 1f }, Vector3.zero, depth, shoulders, arm.lo_back, arm.lo_front + tune.sternum_front / scale);
         midline(spine, "Spine");
         midline(spine1, "Spine1");
         midline(spine2, "Spine2");

@@ -466,6 +466,7 @@ public class mapping_tester : MonoBehaviour{
                 var head_front = EditorGUILayout.Slider("head ring front reach", mapping.tune.head_front, -0.05f, 0.1f);
                 var head_back = EditorGUILayout.Slider("head ring back reach", mapping.tune.head_back, -0.05f, 0.1f);
                 var neck_front = EditorGUILayout.Slider("neck mid front reach", mapping.tune.neck_front, -0.05f, 0.1f);
+                var sternum_front = EditorGUILayout.Slider("sternum mid front reach", mapping.tune.sternum_front, -0.05f, 0.1f);
                 var crown_front = EditorGUILayout.Slider("crown ring front reach", mapping.tune.crown_front, -0.05f, 0.1f);
                 var crown_back = EditorGUILayout.Slider("crown ring back reach", mapping.tune.crown_back, -0.05f, 0.1f);
                 var spine_front = EditorGUILayout.Slider("spine ring front reach", mapping.tune.spine_front, -0.05f, 0.1f);
@@ -505,6 +506,7 @@ public class mapping_tester : MonoBehaviour{
                     mapping.tune.head_front = head_front;
                     mapping.tune.head_back = head_back;
                     mapping.tune.neck_front = neck_front;
+                    mapping.tune.sternum_front = sternum_front;
                     mapping.tune.crown_front = crown_front;
                     mapping.tune.crown_back = crown_back;
                     mapping.tune.spine_front = spine_front;
