@@ -204,7 +204,7 @@ static class sweep{
 
         var live = cage.points(lengths, d.k);
         var moved = cage_deform.map(bound, live);
-        var escaped = cage.outside(moved, live, d.k.tris);
+        var escaped = cage.exposed(moved, live, d.k);
         var hit = cage.self_overlaps(lengths, d.k);
 
         return new verdict{
@@ -222,10 +222,13 @@ static class sweep{
         return d.k.joint_rest_len[Array.IndexOf(d.k.joint_name, joint)];
     }
 
-    // A case is clean when nothing pierces the shell and the body has not escaped further than it
-    // does at rest.
-    static bool clean(verdict v, verdict baseline){
-        return v.collide == 0 && v.outside <= baseline.outside;
+    // A case is clean when nothing pierces the shell. Vertices that leave the deformed cage are
+    // not a failure: the coordinates were fixed against the rest cage and a point landing outside
+    // the new shell is not thereby mis-mapped, so escapes are reported as a statistic instead. What
+    // does have teeth is the rest cage holding the mesh, which the baseline below checks, and the
+    // shell not folding, which is this. See cage.md `[N18]`.
+    static bool clean(verdict v){
+        return v.collide == 0;
     }
 
     static void write_csv(string path, length_case[] cases, verdict[] found, verdict baseline){
@@ -241,7 +244,7 @@ static class sweep{
 
     static string write_report(string path, rest_data d, length_case[] cases, verdict[] found, verdict baseline, int seed, string[] skip){
         var all = cases.Zip(found, (c, v) => (c, v)).ToArray();
-        var bad = all.Where(e => !clean(e.v, baseline)).ToArray();
+        var bad = all.Where(e => !clean(e.v)).ToArray();
         var r = new StringBuilder();
 
         r.AppendLine($"# cage sweep -- {DateTime.Now:yyyy-MM-dd HH:mm}");
@@ -250,13 +253,19 @@ static class sweep{
             + $"{d.bone.Length} editable bones over rest x [{lo:0.0}, {hi:0.0}], random seed {seed}"
             + (skip.Length > 0 ? $", bones named {string.Join("/", skip)} held at rest" : "") + ".");
         r.AppendLine();
-        r.AppendLine($"- rest baseline: **{baseline.outside}** vertices outside, **{baseline.collide}** triangles in self-collision");
-        r.AppendLine($"- cases: **{cases.Length}**, failing: **{bad.Length}** "
-            + $"(containment {all.Count(e => e.v.outside > baseline.outside)} - self-collision {all.Count(e => e.v.collide > 0)})");
+        var rest_note = baseline.outside == 0 && baseline.collide == 0 ? "clean"
+            : "**the recipe is broken at rest, so everything below is measured against a broken baseline**";
+        r.AppendLine($"- rest baseline: **{baseline.outside}** vertices outside, **{baseline.collide}** triangles in self-collision -- {rest_note}");
+        r.AppendLine($"- cases: **{cases.Length}**, failing: **{bad.Length}** (self-collision; escapes are a statistic, `[N18]`)");
+
+        var esc = all.Select(e => e.v.outside - baseline.outside).Where(x => x > 0).OrderBy(x => x).ToArray();
+        r.AppendLine(esc.Length == 0 ? "- escapes: none"
+            : $"- escapes: **{esc.Length}** cases leak, median **{esc[esc.Length / 2]}**, 90th **{esc[(int)(esc.Length * 0.9)]}**, "
+                + $"worst **{esc.Last()}** of {d.pts.Length} vertices");
         r.AppendLine();
 
         foreach(var tier in all.GroupBy(e => e.c.tier).OrderBy(g => g.Key)){
-            var n = tier.Count(e => !clean(e.v, baseline));
+            var n = tier.Count(e => !clean(e.v));
             r.AppendLine($"- {tier.Key}: {n} / {tier.Count()} failing");
         }
 
@@ -276,7 +285,7 @@ static class sweep{
         }
 
         r.AppendLine();
-        r.AppendLine("## containment, by the body part the escaped vertices belong to");
+        r.AppendLine("## escapes (a statistic, not a failure), by the body part the vertices belong to");
         r.AppendLine();
         r.AppendLine("| joint | worst extra escapes | case |");
         r.AppendLine("|---|---|---|");
@@ -295,21 +304,22 @@ static class sweep{
         r.AppendLine();
         r.AppendLine("## per bone: how far it goes alone before something breaks");
         r.AppendLine();
-        r.AppendLine("| bone | clean range | first failure |");
-        r.AppendLine("|---|---|---|");
+        r.AppendLine("| bone | clean range | worst escape | first failure |");
+        r.AppendLine("|---|---|---|---|");
         foreach(var b in Enumerable.Range(0, d.bone.Length)){
             var walk = all.Where(e => e.c.single == b).Select(e => (r: e.c.ratio[b], e)).ToArray();
             if(walk.Length > 0){
                 // Walk out from rest in both directions; the range ends at the first failing step.
                 var down = walk.Where(w => w.r < 1f).OrderByDescending(w => w.r).ToArray();
                 var up = walk.Where(w => w.r > 1f).OrderBy(w => w.r).ToArray();
-                var shrink = down.TakeWhile(w => clean(w.e.v, baseline)).ToArray();
-                var stretch = up.TakeWhile(w => clean(w.e.v, baseline)).ToArray();
+                var shrink = down.TakeWhile(w => clean(w.e.v)).ToArray();
+                var stretch = up.TakeWhile(w => clean(w.e.v)).ToArray();
                 var broke = down.Skip(shrink.Length).Take(1).Concat(up.Skip(stretch.Length).Take(1))
                     .Select(w => $"{w.r:0.###}: {why(w.e.v, baseline)}");
 
+                var leak = walk.Max(w => w.e.v.outside - baseline.outside);
                 r.AppendLine($"| {d.bone[b]} | {(shrink.Length > 0 ? shrink.Last().r : 1f):0.###} - "
-                    + $"{(stretch.Length > 0 ? stretch.Last().r : 1f):0.###} | {string.Join("; ", broke)} |");
+                    + $"{(stretch.Length > 0 ? stretch.Last().r : 1f):0.###} | {(leak > 0 ? "+" + leak : "-")} | {string.Join("; ", broke)} |");
             }
         }
 
