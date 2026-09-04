@@ -552,8 +552,8 @@ public class mapping_tester : MonoBehaviour{
                     var lengths = mapping.measure().ToDictionary(b => b.joint, b => b.native_length);
                     var live = cage.points(lengths, mapping.constants);
                     var moved = mapping.mapped(live);
-                    mapping.outside_points = cage.outside(moved, live, mapping.constants.tris).Select(i => moved[i]).ToArray();
-                    Debug.Log($"cage: {mapping.outside_points.Length} / {moved.Length} mesh vertices outside");
+                    mapping.outside_points = cage.exposed(moved, live, mapping.constants).Select(i => moved[i]).ToArray();
+                    Debug.Log($"cage: {mapping.outside_points.Length} / {moved.Length} mesh vertices outside the shell or too near a face");
                 }
 
                 if(mapping.constants != null && GUILayout.Button("export sweep data")){

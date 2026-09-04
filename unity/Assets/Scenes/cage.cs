@@ -102,6 +102,11 @@ public class cage_constants{
     // between them, its rungs and the diagonal splitting each quad, no row of any table names.
     // Triangulating loses the difference, so the pairs are kept. Read by the debug wire (frame).
     public int[] grid;
+
+    // How far inside the shell the mesh must stay, in rig units. Being outside is not the whole
+    // problem: a vertex sitting on a cage face breaks the coordinate kernel, and the error is
+    // already 6 mm a tenth of a millimetre off it. See cage.md `[N18]`.
+    public float clearance;
 }
 
 #if UNITY_EDITOR
@@ -371,6 +376,11 @@ public static class cage{
     // Fractional slack added to every measured extent so the shell clears the flesh instead of
     // touching it. Editable constant.
     const float margin = 0.05f;
+
+    // How far inside the shell every mesh vertex must stay, in scene units. The coordinate kernel
+    // degrades as a point nears a face and breaks on it; this is where the error goes flat, measured
+    // in `[N18]`. Editable constant.
+    const float clearance = 0.0005f;
 
     // Cross-section window of a joint ring, as a fraction of its anchor bone's rest length: only
     // flesh within this distance of the ring plane sets that ring's thickness. Editable constant.
@@ -812,6 +822,7 @@ public static class cage{
         hand("RightHand", "R", wrist_lo, -side, false);
 
         var k = new cage_constants{
+            clearance = clearance / scale,
             joint_name = bones.Select(t => t.name).ToArray(),
             joint_parent = parent,
             joint_dir = dir,
@@ -974,22 +985,80 @@ public static class cage{
             .Sum(t => (double)Vector3.Dot(v[tris[t * 3]], Vector3.Cross(v[tris[t * 3 + 1]], v[tris[t * 3 + 2]]))) / 6.0;
     }
 
-    // Containment: which of the given points fall outside the shell. The body at a set of bone
-    // lengths is the rest mesh mapped through the cage those lengths build, so both arguments come
-    // out of the same lengths and the check is a pure function of them -- the inspector button runs
-    // it on the current lengths, the sweep in tools/cage_sweep headless over thousands of them.
-    // This coarse a cage escapes at rest already, so what a sweep reads is the change from that.
-    public static List<int> outside(Vector3[] pts, Vector3[] cage_verts, int[] tris){
-        return Enumerable.Range(0, pts.Length).Where(i => !inside(pts[i], cage_verts, tris)).ToList();
+    // Which of the given points the shell does not hold with room to spare: outside it, or inside
+    // but nearer a face than the clearance. The margin is the rule rather than the side, because a
+    // vertex on a face is what actually breaks the coordinates and nothing at editing time can
+    // watch for that one case -- a mesh crossing a cage face with no vertex landing on it is luck,
+    // not safety `[N18]`. The body at a set of bone lengths is the rest mesh mapped through the
+    // cage those lengths build, so both arguments come out of the same lengths and the check is a
+    // pure function of them: the inspector button runs it on the current lengths, the sweep in
+    // tools/cage_sweep headless over thousands of them.
+    public static List<int> exposed(Vector3[] pts, Vector3[] cage_verts, cage_constants k){
+        return Enumerable.Range(0, pts.Length).Where(i => !held(pts[i], cage_verts, k)).ToList();
     }
 
-    // The cage is a closed shell, so an odd crossing count along any ray means the point is in.
-    // The direction is arbitrary, skewed off the cardinal axes the panels are aligned to.
-    static bool inside(Vector3 p, Vector3[] v, int[] tris){
+    // The cage is a closed shell, so an odd crossing count along any ray means the point is in; the
+    // ray direction is arbitrary, skewed off the cardinal axes the panels are aligned to. The same
+    // pass takes the distance to the nearest face, which is the margin the point is held by.
+    static bool held(Vector3 p, Vector3[] v, cage_constants k){
         var dir = new Vector3(0.5773f, 0.3313f, 0.7449f).normalized;
-        var hits = Enumerable.Range(0, tris.Length / 3)
-            .Count(t => pierces(p, dir, float.PositiveInfinity, v[tris[t * 3]], v[tris[t * 3 + 1]], v[tris[t * 3 + 2]]));
-        return hits % 2 == 1;
+        var hits = 0;
+        var gap = float.MaxValue;
+        for(var t = 0; t < k.tris.Length; t += 3){
+            var a = v[k.tris[t]];
+            var b = v[k.tris[t + 1]];
+            var c = v[k.tris[t + 2]];
+            if(pierces(p, dir, float.PositiveInfinity, a, b, c)){
+                hits++;
+            }
+            gap = Mathf.Min(gap, span(p, a, b, c));
+        }
+        return hits % 2 == 1 && gap >= k.clearance;
+    }
+
+    // Distance from a point to a triangle: the nearest of its face, its three edges and its three
+    // corners, picked by the region the point projects into.
+    static float span(Vector3 p, Vector3 a, Vector3 b, Vector3 c){
+        var ab = b - a;
+        var ac = c - a;
+        var ap = p - a;
+        var d1 = Vector3.Dot(ab, ap);
+        var d2 = Vector3.Dot(ac, ap);
+        if(d1 <= 0f && d2 <= 0f){
+            return ap.magnitude;
+        }
+
+        var bp = p - b;
+        var d3 = Vector3.Dot(ab, bp);
+        var d4 = Vector3.Dot(ac, bp);
+        if(d3 >= 0f && d4 <= d3){
+            return bp.magnitude;
+        }
+
+        var cp = p - c;
+        var d5 = Vector3.Dot(ab, cp);
+        var d6 = Vector3.Dot(ac, cp);
+        if(d6 >= 0f && d5 <= d6){
+            return cp.magnitude;
+        }
+
+        var along_ab = d1 * d4 - d3 * d2;
+        if(along_ab <= 0f && d1 >= 0f && d3 <= 0f){
+            return (ap - ab * (d1 / (d1 - d3))).magnitude;
+        }
+
+        var along_ac = d5 * d2 - d1 * d6;
+        if(along_ac <= 0f && d2 >= 0f && d6 <= 0f){
+            return (ap - ac * (d2 / (d2 - d6))).magnitude;
+        }
+
+        var along_bc = d3 * d6 - d5 * d4;
+        if(along_bc <= 0f && d4 - d3 >= 0f && d5 - d6 >= 0f){
+            return (bp - (c - b) * ((d4 - d3) / ((d4 - d3) + (d5 - d6)))).magnitude;
+        }
+
+        var area = 1f / (along_bc + along_ac + along_ab);
+        return (ap - ab * (along_ac * area) - ac * (along_ab * area)).magnitude;
     }
 
     // Cage triangles that pierce a triangle they share no corner with. The shell is closed and
