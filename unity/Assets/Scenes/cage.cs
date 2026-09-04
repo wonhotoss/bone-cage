@@ -287,9 +287,14 @@ public static class cage{
                (spine, edge.mid), (spine1, edge.mid), (spine2, edge.mid), (sternum, edge.mid), (neck, edge.mid) },
         new[]{ (neck, edge.mid), (sternum, edge.mid), (spine2, edge.mid), (spine1, edge.mid), (spine, edge.mid),
                (spine, edge.lo), (spine1, edge.lo), (spine2, edge.lo), (arm_lo, edge.lo), (arm_lo, edge.hi) },
-        // The neck, from the V up to the head ring, and the head, from there to the crown.
-        new[]{ (head, edge.mid), (head, edge.hi), (arm_hi, edge.hi), (neck, edge.mid) },
-        new[]{ (neck, edge.mid), (arm_lo, edge.hi), (head, edge.lo), (head, edge.mid) },
+        // The neck, from the V up to the head ring, and the head, from there to the crown. The neck
+        // panel is a quad, and where its crease runs matters: the ladder joins the outline's first
+        // control point to its third (see strip), so tracing from the jaw's own corner rather than
+        // from the midline folds it along the jaw instead of from the seam to the chin. Shorten the
+        // neck and the jaw sinks past the seam, twisting this quad whichever way it is cut; the
+        // crease along the jaw is the one that does not then cut into the head panels. `[N3]`
+        new[]{ (head, edge.hi), (arm_hi, edge.hi), (neck, edge.mid), (head, edge.mid) },
+        new[]{ (arm_lo, edge.hi), (head, edge.lo), (head, edge.mid), (neck, edge.mid) },
         new[]{ (crown, edge.mid), (crown, edge.hi), (head, edge.hi), (head, edge.mid) },
         new[]{ (head, edge.mid), (head, edge.lo), (crown, edge.lo), (crown, edge.mid) },
         // The shoulder: the wedge between the arm ring and the deltoid ring, which share the armpit
