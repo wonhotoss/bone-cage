@@ -83,6 +83,18 @@ public class cage_post{
     public float d_lo, d_hi;
 }
 
+// A correction applied once every ring and post is placed, because it reads one part of the cage
+// against another and so cannot run while that part is still being built. The moved vertices are
+// carried together, which keeps whatever shape they make; the floor is what they may not pass on
+// the axis. See cage.md `[N20]`.
+[Serializable]
+public class cage_gate{
+    public string name;         // as the design document calls it
+    public int[] moved;         // vertices lifted together
+    public int[] floor;         // vertices they must stay on the +axis side of
+    public Vector3 axis;
+}
+
 [Serializable]
 public class cage_constants{
     // Joints, in parent-before-child order, for forward kinematics.
@@ -94,6 +106,7 @@ public class cage_constants{
     public cage_ring[] rings;
     public cage_post[] posts;       // the midline, then the hands, after the ring corners in the vertex order
     public int[] tris;              // indices into 4*rings.Length + 2*posts.Length vertices
+    public cage_gate[] gates;       // corrections, applied in this order once the rest is placed
 
     // Vertex pairs: the edges the topology tables declare, which tris alone cannot give back. Each
     // consecutive pair of posts along a plate's outline or a wall's chain is a ring of the shell --
@@ -174,7 +187,18 @@ public static class cage{
         // Posts first: a post reads nothing but the joint centers, while a ring edge can be held
         // level with one, so the dependency runs one way and no cycle is possible.
         var posts = post_ends(k, jc);
-        return ring_corners(k, jc, posts).Concat(posts).ToArray();
+        var verts = ring_corners(k, jc, posts).Concat(posts).ToArray();
+
+        // Then the gates, which read the placed cage against itself. Declaration order is their
+        // priority: a later one moves vertices an earlier one may already have moved.
+        foreach(var g in k.gates){
+            var lift = Mathf.Max(0f, g.floor.Max(i => Vector3.Dot(verts[i], g.axis))
+                - g.moved.Min(i => Vector3.Dot(verts[i], g.axis)));
+            foreach(var i in g.moved){
+                verts[i] += g.axis * lift;
+            }
+        }
+        return verts;
     }
 
     // The same control points wrapped in the fixed-topology mesh, for display.
@@ -821,8 +845,23 @@ public static class cage{
         hand("LeftHand", "L", wrist_hi, side, true);
         hand("RightHand", "R", wrist_lo, -side, false);
 
+        // The head sits on the shoulders. Shorten the neck and the parting plane sinks until its
+        // front corners -- its lowest, the ring leaning chin down -- pass the arm rings' top edges:
+        // the seam crosses the jaw and the neck panels fold through the head. Fitting the two ever
+        // more closely cannot settle that, since the mesh decides how much room there is and some
+        // mesh will always take it away, so the head is lifted back out of the shoulders instead.
+        // The ring, the crown over it and the midline posts they carry move as one, keeping the
+        // shape of the box; at rest the head already clears the shoulders, so nothing moves. `[N20]`
+        var head_box = new[]{ crown, head }.SelectMany(r => Enumerable.Range(r * 4, 4))
+            .Concat(new[]{ (crown, edge.mid), (head, edge.mid) }
+                .SelectMany(e => new[]{ post_hi, post_lo }.Select(end => rings.Length * 4 + at[e] * 2 + end)))
+            .ToArray();
+        var shoulder_tops = new[]{ arm_hi, arm_lo }
+            .SelectMany(r => new[]{ hi_front, hi_back }.Select(c => r * 4 + c)).ToArray();
+
         var k = new cage_constants{
             clearance = clearance / scale,
+            gates = new[]{ new cage_gate{ name = "head above arms", moved = head_box, floor = shoulder_tops, axis = up } },
             joint_name = bones.Select(t => t.name).ToArray(),
             joint_parent = parent,
             joint_dir = dir,
