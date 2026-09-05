@@ -91,7 +91,9 @@ public class cage_post{
 public class cage_gate{
     public string name;         // as the design document calls it
     public int[] moved;         // vertices lifted together
-    public int[] floor;         // vertices they must stay on the +axis side of
+    public int[] probe;         // the place on them that is read: the least of these along the axis
+    public int[] floor;         // vertices the probe must stay on the +axis side of
+    public float slack;         // how far past the floor the probe may go before the gate acts, rig units
     public Vector3 axis;
 }
 
@@ -137,6 +139,9 @@ public class cage_tune{
     public float head_tilt = 25f;       // degrees the head ring's plane leans forward about the side axis, chin down
     public float head_offset = 0.023f;  // how far above the Head joint that plane sits, along its own normal
     public float head_front = 0f, head_back = 0f;   // depth reach of the head ring: chin and occiput
+    public float head_gate_slack = 0.038f;  // how far the head ring's lowest corner may sink below the
+                                            // arm rings' top edges before the gate lifts the head off
+                                            // them: all of it, and the neck can hardly shorten `[N20]`
     public float neck_front = 0f;   // how far ahead of the arm rings' top edge the V's floor stands, so
                                     // drawing that edge in over the chest does not drag the throat in with it
     public float sternum_front = 0f;    // the same on the rung below, at the armpits: how far ahead of the
@@ -193,7 +198,7 @@ public static class cage{
         // priority: a later one moves vertices an earlier one may already have moved.
         foreach(var g in k.gates){
             var lift = Mathf.Max(0f, g.floor.Max(i => Vector3.Dot(verts[i], g.axis))
-                - g.moved.Min(i => Vector3.Dot(verts[i], g.axis)));
+                - g.probe.Min(i => Vector3.Dot(verts[i], g.axis)) - g.slack);
             foreach(var i in g.moved){
                 verts[i] += g.axis * lift;
             }
@@ -845,13 +850,18 @@ public static class cage{
         hand("LeftHand", "L", wrist_hi, side, true);
         hand("RightHand", "R", wrist_lo, -side, false);
 
-        // The head sits on the shoulders. Shorten the neck and the parting plane sinks until its
-        // front corners -- its lowest, the ring leaning chin down -- pass the arm rings' top edges:
+        // The head sits on the shoulders. Shorten the neck and the parting plane sinks until it
+        // passes the arm rings' top edges:
         // the seam crosses the jaw and the neck panels fold through the head. Fitting the two ever
         // more closely cannot settle that, since the mesh decides how much room there is and some
         // mesh will always take it away, so the head is lifted back out of the shoulders instead.
         // The ring, the crown over it and the midline posts they carry move as one, keeping the
         // shape of the box; at rest the head already clears the shoulders, so nothing moves. `[N20]`
+        // What is read off the head is its lowest corner, and the slack is how far below the
+        // shoulders that corner may still go. With none the head stops the moment it touches and
+        // the neck can barely shorten; measured, the panels only start folding once the ring sinks
+        // about two fifths of its own height past them, and the tune sits inside that.
+        var head_low = Enumerable.Range(head * 4, 4).ToArray();
         var head_box = new[]{ crown, head }.SelectMany(r => Enumerable.Range(r * 4, 4))
             .Concat(new[]{ (crown, edge.mid), (head, edge.mid) }
                 .SelectMany(e => new[]{ post_hi, post_lo }.Select(end => rings.Length * 4 + at[e] * 2 + end)))
@@ -861,7 +871,7 @@ public static class cage{
 
         var k = new cage_constants{
             clearance = clearance / scale,
-            gates = new[]{ new cage_gate{ name = "head above arms", moved = head_box, floor = shoulder_tops, axis = up } },
+            gates = new[]{ new cage_gate{ name = "head above arms", moved = head_box, probe = head_low, floor = shoulder_tops, slack = tune.head_gate_slack / scale, axis = up } },
             joint_name = bones.Select(t => t.name).ToArray(),
             joint_parent = parent,
             joint_dir = dir,
