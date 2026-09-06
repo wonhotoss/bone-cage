@@ -142,6 +142,8 @@ public class cage_tune{
     public float head_gate_slack = 0.038f;  // how far the head ring's lowest corner may sink below the
                                             // arm rings' top edges before the gate lifts the head off
                                             // them: all of it, and the neck can hardly shorten `[N20]`
+    public float arm_gate_slack = 0f;   // how far inside the head's silhouette an arm ring's top edge may
+                                        // come before the gate stops the whole ring coming in `[N20]`
     public float neck_front = 0f;   // how far ahead of the arm rings' top edge the V's floor stands, so
                                     // drawing that edge in over the chest does not drag the throat in with it
     public float sternum_front = 0f;    // the same on the rung below, at the armpits: how far ahead of the
@@ -862,7 +864,7 @@ public static class cage{
         // shoulders that corner may still go. With none the head stops the moment it touches and
         // the neck can barely shorten; measured, the panels only start folding once the ring sinks
         // about two fifths of its own height past them, and the tune sits inside that.
-        var head_low = Enumerable.Range(head * 4, 4).ToArray();
+        var head_ring = Enumerable.Range(head * 4, 4).ToArray();
         var head_box = new[]{ crown, head }.SelectMany(r => Enumerable.Range(r * 4, 4))
             .Concat(new[]{ (crown, edge.mid), (head, edge.mid) }
                 .SelectMany(e => new[]{ post_hi, post_lo }.Select(end => rings.Length * 4 + at[e] * 2 + end)))
@@ -870,9 +872,31 @@ public static class cage{
         var shoulder_tops = new[]{ arm_hi, arm_lo }
             .SelectMany(r => new[]{ hi_front, hi_back }.Select(c => r * 4 + c)).ToArray();
 
+        // And the shoulders stay beside the head. Shorten a clavicle and the arm ring rides in with
+        // its joint until its top edge, the one drawn in over the trapezius, stands inside the
+        // head's silhouette: the wall down from the head's side leans in and the neck panel folds
+        // onto the head panel. What is read is that edge; what moves is the whole ring, the way the
+        // head is lifted as a box, so the ring keeps its raglan tilt and merely stops coming in --
+        // pushing the one edge out would tilt it the other way. The elbow ring and the deltoid post
+        // stay where their bones put them. The head is read for its widest corner on that side, so
+        // its tilt does not enter; the two gates move along side and the head gate along up, so
+        // neither reads what the other moves and their order is immaterial. At rest the edge clears
+        // the head by several centimetres and nothing moves. `[N20]`
+        cage_gate arm_beside_head(string name, int arm, Vector3 axis){
+            return new cage_gate{
+                name = name, moved = Enumerable.Range(arm * 4, 4).ToArray(),
+                probe = new[]{ hi_front, hi_back }.Select(c => arm * 4 + c).ToArray(),
+                floor = head_ring, slack = tune.arm_gate_slack / scale, axis = axis,
+            };
+        }
+
         var k = new cage_constants{
             clearance = clearance / scale,
-            gates = new[]{ new cage_gate{ name = "head above arms", moved = head_box, probe = head_low, floor = shoulder_tops, slack = tune.head_gate_slack / scale, axis = up } },
+            gates = new[]{
+                new cage_gate{ name = "head above arms", moved = head_box, probe = head_ring, floor = shoulder_tops, slack = tune.head_gate_slack / scale, axis = up },
+                arm_beside_head("L arm beside head", arm_hi, side),
+                arm_beside_head("R arm beside head", arm_lo, -side),
+            },
             joint_name = bones.Select(t => t.name).ToArray(),
             joint_parent = parent,
             joint_dir = dir,
