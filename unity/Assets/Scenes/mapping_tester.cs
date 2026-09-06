@@ -492,6 +492,8 @@ public class mapping_tester : MonoBehaviour{
                 var wrist_pinky = EditorGUILayout.Slider("wrist ring pinky-side reach", mapping.tune.wrist_pinky, -0.05f, 0.05f);
                 var thumb_out = EditorGUILayout.Slider("palm thumb out reach", mapping.tune.thumb_out, -0.05f, 0.05f);
                 var pinky_out = EditorGUILayout.Slider("palm pinky out reach", mapping.tune.pinky_out, -0.05f, 0.05f);
+                var finger_out = EditorGUILayout.Slider("finger ring side reach", mapping.tune.finger_out, -0.005f, 0.01f);
+                var valley_reach = EditorGUILayout.Slider("palm valley reach", mapping.tune.valley_reach, 0f, 0.03f);
                 if(EditorGUI.EndChangeCheck()){
                     Undo.RecordObject(mapping, "tune cage");
                     mapping.tune.arm_hi = arm_hi;
@@ -533,6 +535,8 @@ public class mapping_tester : MonoBehaviour{
                     mapping.tune.wrist_pinky = wrist_pinky;
                     mapping.tune.thumb_out = thumb_out;
                     mapping.tune.pinky_out = pinky_out;
+                    mapping.tune.finger_out = finger_out;
+                    mapping.tune.valley_reach = valley_reach;
                     mapping.constants = cage.bake(mapping.source, mapping.tune);
                     mapping.update_cage();
                     tune_pending = true;

@@ -43,7 +43,7 @@
 |---|---|---|---|
 | `margin` | 0.05 | 비율 | 모든 측정 구간을 살에서 띄우는 여유 |
 | `slab` | 0.25 | 비율 | joint 링의 측정 창 반폭(앵커 뼈 rest 길이 대비) |
-| `valley_reach` | 0.01 | 씬 | 손가락 계곡 제어점을 손목 반대 방향으로 미는 거리 |
+| `valley_reach` | 튠 중(§7, 초기 0.01) | 씬 | 손가락 계곡 제어점을 손목 반대 방향으로 미는 거리. `cage_tune`으로 옮겨 튠 중 |
 | `wrist_drop` | 0.01 | 씬 | 손목 링의 손바닥 쪽 변을 손 판 아래로 내리는 거리 `[N5]` |
 | `clearance` | 0.0005 | 씬 | 메시 정점이 케이지 면에서 지켜야 하는 최소 거리. 포함 검사의 기준이며, 이 아래에서 좌표 커널이 무너진다 `[N18]` |
 
@@ -162,7 +162,7 @@ ankle의 `↷`는 `n`의 기준이 `−up`이라 `n = −cos·up + sin·depth`, 
 | 이름 | 앵커(가중치) | 오프셋 |
 |---|---|---|
 | `L thumb out` | Thumb2 (1) | `s`로 `wide_hi`까지 + `thumb out`(튠 중 §7) |
-| `L thumb\|index` | Thumb2, Index1 (½, ½) | 손목→중점 방향(판 내 투영)으로 `valley_reach` |
+| `L thumb\|index` | Thumb2, Index1 (½, ½) | 손목→중점 방향(판 내 투영)으로 `valley_reach`(튠 중 §7) |
 | `L index\|middle` | Index1, Middle1 (½, ½) | 〃 |
 | `L middle\|ring` | Middle1, Ring1 (½, ½) | 〃 |
 | `L ring\|pinky` | Ring1, Pinky1 (½, ½) | 〃 |
@@ -181,12 +181,12 @@ ankle의 `↷`는 `n`의 기준이 `−up`이라 `n = −cos·up + sin·depth`, 
 
 규칙:
 - **축**: 뼈 방향 `dir[J]`를 판 평면에 투영한 `along`, 그에 직교하는 판 내 축 `perp`(+ = 엄지 쪽). 링은 `s`가 아니라 **자기 뼈에 직교**한다 `[N6]`.
-- **반경**: 관절 `J` 서브트리 살의 `perp` 구간을 inflate. 기둥 오프셋 = `perp · (구간 끝 − 관절의 perp 좌표 ± finger_reach)`.
+- **반경**: 관절 `J` 서브트리 살의 `perp` 구간을 inflate. 기둥 오프셋 = `perp · (구간 끝 − 관절의 perp 좌표 ± (finger_reach + finger out))` — `finger out`은 모든 손가락 링 양변에 같은 여유를 더하는 knob, 튠 중(§7).
 - **endbone**: 마지막 마디 살이 `dir`로 뻗은 최대 거리 ×(1+margin)를 **rest 길이 비율 `f`** 로 굽고, 앵커 `(last, parent(last))`에 가중치 `(1+f, −f)` `[N6]`.
 
 ### 4d. 손가락 링 추가 여유 — `finger_reach`
 
-씬 단위, 좌우 손 공통. 표에 없는 링은 잰 값 그대로.
+씬 단위, 좌우 손 공통. 표에 없는 링은 잰 값 그대로. 위에 `finger out`(튠 중 §7)이 모든 링 양변에 일괄로 더해진다 — 표는 링 하나의 예외, knob은 손가락 전체의 바닥 여유.
 
 | 손가락 | 링 | hi(엄지 쪽) | lo(새끼 쪽) |
 |---|---|---|---|
@@ -293,7 +293,7 @@ rest에서는 머리가 이미 어깨 위에 있어 `lift = 0`이므로 **rest �
 | `check self-collision` | 정점을 공유하지 않는 삼각형 쌍의 관통 검출, 빨간 외곽선. 손가락 길이를 크게 바꾼 뒤 먼저 볼 것. |
 | `rebuild cage` | 재bake + 케이지 갱신 + 재bind. 이 문서의 상수를 바꾸면 누른다. |
 | `export sweep data` | 스윕(§7b)이 읽을 rest 쪽을 `tools/cage_sweep/data/`에 기록: 구운 상수(JSON), rest 메시(rig 공간)와 정점별 지배 관절, 슬라이더가 편집하는 본 목록. 재bake 뒤에 다시 누른다. |
-| 튠 슬라이더 (`cage_tune`) | 아직 확정 안 된 §3 값을 인스펙터에서 찾는 임시 편집기. 현재: arm 링 `hi`(기본 0.05) · `lo`(0, 범위 −0.1..0.1), arm 링 `outward hi` · `outward lo`(0.05, 범위 −0.15..0.1; 음수로 hi는 승모근 위까지, lo는 겨드랑이 속까지 들인다), arm 링 hi/lo 변별 `front`·`back`(0, 범위 −0.1..0.1), crown·spine·spine1·spine2 링 `front`·`back`(0, 범위 −0.05..0.1), head 링 `tilt`(25°, 0..45) · `offset`(0.023, −0.02..0.06) · `front`·`back`(0, −0.05..0.1), `head gate slack`(§6b 보정의 여유, 0.038, 0..0.1), `neck front`·`sternum front`(두 정중선 기둥의 앞끝만 띠 너머로, 0, −0.05..0.1), 골반 `crotch drop`(0.15, 0..0.3) · `hip out`(비율 1, 0..2) · `pelvis front`·`back`(0, −0.05..0.1), knee 링 `out`(양 링의 바깥쪽 변 s 여유, 0, −0.1..0.1) · `back`(0.1, −0.05..0.2), ankle 링 `tilt`(45°, 0..80) · `front`(0, −0.1..0.1) · `back`(0, −0.05..0.1; 발바닥 높이도 정한다), 어깨 기둥 `delt along`(비율 0.4, 0.1..0.9) · `delt up`(0, −0.05..0.1), elbow 링 `hi`(양 링 윗변, 0.05, −0.05..0.1), 손 `wrist thumb`·`wrist pinky`(손목 링 폭 여유, 0, −0.05..0.05) · `thumb out`·`pinky out`(8각형 바깥 기둥 여유, 0, −0.05..0.05; 양손 공통, 음수 = 살 쪽으로). 드래그 중엔 재bake + 케이지 갱신만(와이어가 바로 따라옴), 놓으면 재bind + deform. 값이 정해지면 표와 recipe로 옮기고 슬라이더는 지운다. |
+| 튠 슬라이더 (`cage_tune`) | 아직 확정 안 된 §3 값을 인스펙터에서 찾는 임시 편집기. 현재: arm 링 `hi`(기본 0.05) · `lo`(0, 범위 −0.1..0.1), arm 링 `outward hi` · `outward lo`(0.05, 범위 −0.15..0.1; 음수로 hi는 승모근 위까지, lo는 겨드랑이 속까지 들인다), arm 링 hi/lo 변별 `front`·`back`(0, 범위 −0.1..0.1), crown·spine·spine1·spine2 링 `front`·`back`(0, 범위 −0.05..0.1), head 링 `tilt`(25°, 0..45) · `offset`(0.023, −0.02..0.06) · `front`·`back`(0, −0.05..0.1), `head gate slack`(§6b 보정의 여유, 0.038, 0..0.1), `neck front`·`sternum front`(두 정중선 기둥의 앞끝만 띠 너머로, 0, −0.05..0.1), 골반 `crotch drop`(0.15, 0..0.3) · `hip out`(비율 1, 0..2) · `pelvis front`·`back`(0, −0.05..0.1), knee 링 `out`(양 링의 바깥쪽 변 s 여유, 0, −0.1..0.1) · `back`(0.1, −0.05..0.2), ankle 링 `tilt`(45°, 0..80) · `front`(0, −0.1..0.1) · `back`(0, −0.05..0.1; 발바닥 높이도 정한다), 어깨 기둥 `delt along`(비율 0.4, 0.1..0.9) · `delt up`(0, −0.05..0.1), elbow 링 `hi`(양 링 윗변, 0.05, −0.05..0.1), 손 `wrist thumb`·`wrist pinky`(손목 링 폭 여유, 0, −0.05..0.05) · `thumb out`·`pinky out`(8각형 바깥 기둥 여유, 0, −0.05..0.05; 양손 공통, 음수 = 살 쪽으로), `finger out`(모든 손가락 링 양변의 perp 여유 일괄, 0, −0.005..0.01; §4c) · `valley reach`(계곡 제어점을 손목 반대 방향으로 미는 거리, 0.01, 0..0.03; §2·§4b). 드래그 중엔 재bake + 케이지 갱신만(와이어가 바로 따라옴), 놓으면 재bind + deform. 값이 정해지면 표와 recipe로 옮기고 슬라이더는 지운다. |
 | import 시 | `bake` → `bind` → 케이지 자식 생성 → `update_cage`. FBX는 Read/Write 활성 필요. |
 
 ### 7b. 길이 스윕 — `tools/cage_sweep`

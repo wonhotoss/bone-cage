@@ -168,6 +168,10 @@ public class cage_tune{
     public float wrist_pinky = 0f;      // and pinky side; negative draws the ring in over the wrist
     public float thumb_out = 0f;        // reach of the palm octagon's outer posts past the hand's width: the thumb side
     public float pinky_out = 0f;        // and the pinky side
+    public float finger_out = 0f;       // reach of every finger ring on both sides, across its own bone: the one
+                                        // knob for all the fingers at once, over the per-ring finger_reach table
+    public float valley_reach = 0.01f;  // how far past the knuckle line a valley control point sits, so the web
+                                        // between two fingers falls inside the shell; no joint of the rig marks it
 }
 #endif
 
@@ -382,10 +386,6 @@ public static class cage{
     // (-s), and the six palm control points interleave with them.
     static readonly string[] fingers = { "Thumb", "Index", "Middle", "Ring", "Pinky" };
 
-    // How far past the knuckle line a valley control point sits, in scene units, so the web between
-    // two fingers falls inside the shell. Editable constant: no joint of the rig marks it.
-    const float valley_reach = 0.01f;
-
     // How far below the hand's plate the wrist ring's palm side reaches, in scene units. It is the
     // same kind of slack as a recipe's reach, but the wrist ring takes its silhouette extent from
     // the hand rather than from measure(), so it belongs here: the forearm is far thicker than the
@@ -396,7 +396,8 @@ public static class cage{
     // the back of the hand, which is the only one a finger ring has. Rings are numbered as the hand
     // is described: the branch ring a finger shares with its neighbours is 1, so ring 2 is the first
     // one standing on a joint of its own. hi is the thumb side, lo the pinky side. Editable; a ring
-    // not listed keeps the width measured off the flesh.
+    // not listed keeps the width measured off the flesh, plus whatever the tune's finger_out adds to
+    // every ring alike.
     static readonly (string finger, int ring, float hi, float lo)[] finger_reach = {
         ("Index", 3, 0.001f, 0.001f),
         ("Middle", 2, 0f, 0.001f),
@@ -774,7 +775,7 @@ public static class cage{
                 var b = index[prefix + fingers[f + 1] + "1"];
                 var span = (rest[a] + rest[b]) * 0.5f - rest[wrist];
                 var away = (span - d * Vector3.Dot(span, d)).normalized;
-                cp[f + 1] = add($"{tag} {fingers[f].ToLower()}|{fingers[f + 1].ToLower()}", new[]{ a, b }, new[]{ 0.5f, 0.5f }, away * (valley_reach / scale));
+                cp[f + 1] = add($"{tag} {fingers[f].ToLower()}|{fingers[f + 1].ToLower()}", new[]{ a, b }, new[]{ 0.5f, 0.5f }, away * (tune.valley_reach / scale));
             }
             cp[5] = add($"{tag} pinky out", new[]{ pinky }, new[]{ 1f }, s * (wide_lo - Vector3.Dot(rest[pinky], s) - tune.pinky_out / scale));
 
@@ -809,8 +810,8 @@ public static class cage{
                     var anchor = e.past > 0f ? new[]{ e.j, parent[e.j] } : new[]{ e.j };
                     var weight = e.past > 0f ? new[]{ 1f + e.past, -e.past } : new[]{ 1f };
                     var name = $"{tag} {fingers[f].ToLower()} {i + 2}";
-                    return (hi: add(name, anchor, weight, perp * (r_hi - at + extra.hi / scale)),
-                            lo: add(name, anchor, weight, perp * (r_lo - at - extra.lo / scale)));
+                    return (hi: add(name, anchor, weight, perp * (r_hi - at + (extra.hi + tune.finger_out) / scale)),
+                            lo: add(name, anchor, weight, perp * (r_lo - at - (extra.lo + tune.finger_out) / scale)));
                 }).ToArray();
             }
 
