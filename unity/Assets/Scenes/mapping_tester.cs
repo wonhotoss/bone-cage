@@ -467,6 +467,7 @@ public class mapping_tester : MonoBehaviour{
                 var head_back = EditorGUILayout.Slider("head ring back reach", mapping.tune.head_back, -0.05f, 0.1f);
                 var head_gate_slack = EditorGUILayout.Slider("head gate slack", mapping.tune.head_gate_slack, 0f, 0.1f);
                 var arm_gate_slack = EditorGUILayout.Slider("arm gate slack", mapping.tune.arm_gate_slack, -0.05f, 0.05f);
+                var spine_gate_slack = EditorGUILayout.Slider("spine gate slack", mapping.tune.spine_gate_slack, -0.035f, 0.01f);
                 var knee_gate_slack = EditorGUILayout.Slider("knee gate slack", mapping.tune.knee_gate_slack, -0.035f, 0.01f);
                 var neck_front = EditorGUILayout.Slider("neck mid front reach", mapping.tune.neck_front, -0.05f, 0.1f);
                 var sternum_front = EditorGUILayout.Slider("sternum mid front reach", mapping.tune.sternum_front, -0.05f, 0.1f);
@@ -512,6 +513,7 @@ public class mapping_tester : MonoBehaviour{
                     mapping.tune.head_back = head_back;
                     mapping.tune.head_gate_slack = head_gate_slack;
                     mapping.tune.arm_gate_slack = arm_gate_slack;
+                    mapping.tune.spine_gate_slack = spine_gate_slack;
                     mapping.tune.knee_gate_slack = knee_gate_slack;
                     mapping.tune.neck_front = neck_front;
                     mapping.tune.sternum_front = sternum_front;
