@@ -35,6 +35,14 @@ static class sweep{
     // The corners a pair of bones is taken to.
     static readonly float[] corners = { lo, hi };
 
+    // The body sliders, as mapping_tester groups them: three that partition the bones and two that
+    // cut the limbs by side. Walking these is the tier that asks about proportions rather than about
+    // one bone -- the whole-body tier moves every bone independently, so a taller body, the case the
+    // thickness driver is for, never comes up in it. Sides move less: a body is near symmetric.
+    static readonly string[] shape = { "torso", "arms", "legs", "left", "right" };
+    static readonly float[] shape_steps = { 0.7f, 0.85f, 1f, 1.2f, 1.4f };
+    static readonly float[] side_steps = { 0.9f, 1f, 1.1f };
+
     // The rest side, as "export sweep data" wrote it.
     class rest_data{
         public cage_constants k;
@@ -68,7 +76,7 @@ static class sweep{
         var root = Path.GetFullPath(Path.Combine(here, "../../../"));
         var data = arg(args, "--data") ?? Path.Combine(root, "data");
         var into = arg(args, "--out") ?? Path.Combine(root, "out");
-        var tiers = arg(args, "--tiers") ?? "1,2,3";
+        var tiers = arg(args, "--tiers") ?? "1,2,3,4";
         var count = int.Parse(arg(args, "--random") ?? "20000");
         var seed = int.Parse(arg(args, "--seed") ?? "1");
         var skip = (arg(args, "--skip") ?? "").Split(',').Where(t => t.Length > 0).ToArray();
@@ -185,6 +193,42 @@ static class sweep{
             from rb in corners
             select new length_case{ tier = "2 pair", name = $"{d.bone[a]}={ra:0.###} + {d.bone[b]}={rb:0.###}", single = -1, ratio = ratios((a, ra), (b, rb)) };
 
+        // The five body groups, read off the skeleton the way mapping_tester reads them: the arms
+        // are the subtrees under the clavicles, the legs those under the hips, the torso what is
+        // left. A bone takes the product of every group covering it, so an arm carries both arms
+        // and its side.
+        bool under(int b, string root){
+            for(var j = Array.IndexOf(d.k.joint_name, d.joint[b]); j >= 0; j = d.k.joint_parent[j]){
+                if(d.k.joint_name[j] == root){
+                    return true;
+                }
+            }
+            return false;
+        }
+        var covers = new Func<int, bool>[]{
+            b => !under(b, "LeftArm") && !under(b, "RightArm") && !under(b, "LeftUpLeg") && !under(b, "RightUpLeg"),
+            b => under(b, "LeftArm") || under(b, "RightArm"),
+            b => under(b, "LeftUpLeg") || under(b, "RightUpLeg"),
+            b => under(b, "LeftArm") || under(b, "LeftUpLeg"),
+            b => under(b, "RightArm") || under(b, "RightUpLeg"),
+        };
+        length_case proportion_case(float[] by){
+            return new length_case{
+                tier = "4 proportion", single = -1,
+                name = string.Join(" ", shape.Select((g, i) => $"{g}={by[i]:0.##}")),
+                ratio = Enumerable.Range(0, n).Select(b => !free.Contains(b) ? 1f
+                    : Enumerable.Range(0, covers.Length).Where(i => covers[i](b)).Aggregate(1f, (m, i) => m * by[i])).ToArray(),
+            };
+        }
+
+        var proportion = !want.Contains("4") ? Enumerable.Empty<length_case>() :
+            from t in shape_steps
+            from a in shape_steps
+            from l in shape_steps
+            from le in side_steps
+            from ri in side_steps
+            select proportion_case(new[]{ t, a, l, le, ri });
+
         // The whole-body tier is a Monte Carlo stand-in for the product no sweep can enumerate.
         // Seeded and generated in order, so "random#i" names a case that reproduces exactly.
         var rng = new System.Random(seed);
@@ -194,7 +238,7 @@ static class sweep{
                 ratio = ratios(free.Select(b => (b, lo + (float)rng.NextDouble() * (hi - lo))).ToArray()),
             });
 
-        return single.Concat(pair).Concat(whole.ToArray()).ToArray();
+        return single.Concat(pair).Concat(proportion).Concat(whole.ToArray()).ToArray();
     }
 
     // The two checks, on the cage the case's lengths build and the body that cage maps.

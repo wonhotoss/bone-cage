@@ -9,6 +9,32 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 #endif
 
+#if UNITY_EDITOR
+// The five body sliders, as ratios on the rest body. Groups on purpose overlap: torso, arms and
+// legs partition every editable bone, and left and right cut the arms and legs a second way -- so a
+// left forearm carries both arms and left, and the sliders stack by multiplying. The shoulder bases
+// stay out of the sides, which keeps the torso whole under any asymmetry. See cage.md 7.
+[Serializable]
+public class cage_shape{
+    public enum group{ torso, arms, legs, left, right }
+
+    public float torso = 1f, arms = 1f, legs = 1f, left = 1f, right = 1f;
+
+    public float this[group g]{
+        get => g switch{ group.torso => torso, group.arms => arms, group.legs => legs, group.left => left, _ => right };
+        set{
+            switch(g){
+                case group.torso: torso = value; break;
+                case group.arms: arms = value; break;
+                case group.legs: legs = value; break;
+                case group.left: left = value; break;
+                default: right = value; break;
+            }
+        }
+    }
+}
+#endif
+
 public class mapping_tester : MonoBehaviour{
     public SkinnedMeshRenderer source;
     public SkinnedMeshRenderer target;
@@ -27,6 +53,12 @@ public class mapping_tester : MonoBehaviour{
     // Recipe values still being searched for; the inspector's tuning sliders write here and
     // rebake. Drawn by the inspector's cage section, not the default one.
     [HideInInspector] public cage_tune tune = new();
+
+    // Where the five body sliders stand. They scale whole groups of bones at once, so a proportion
+    // can be reached without dragging fifty-three sliders -- and the groups overlap on purpose, an
+    // arm bone taking both arms and its side. Each is a ratio on the rest body, and moving one
+    // applies only the change since it was last here, so per-bone edits under it survive.
+    [HideInInspector] public cage_shape shape = new();
 #endif
 
     // Which coordinates the deform button maps the mesh through.
@@ -119,7 +151,50 @@ public class mapping_tester : MonoBehaviour{
         foreach(var b in measure()){
             b.length = b.rest;
         }
+#if UNITY_EDITOR
+        shape = new cage_shape();
+#endif
     }
+
+#if UNITY_EDITOR
+    // Which of the five groups a bone belongs to, read off the skeleton rather than listed: the two
+    // arms are the subtrees under the clavicles, the two legs those under the hips, and the torso is
+    // whatever is left -- spine, neck, head and the shoulder bases the arms hang from. So the groups
+    // partition the body, and the sides cut the same bones a second way, the shoulder bases aside.
+    IEnumerable<bone> group_of(cage_shape.group g){
+        bool under(Transform t, string root){
+            for(var a = t; a != null; a = a.parent){
+                if(a.name == root){
+                    return true;
+                }
+            }
+            return false;
+        }
+        bool left(bone b){ return under(b.target, "LeftArm") || under(b.target, "LeftUpLeg"); }
+        bool right(bone b){ return under(b.target, "RightArm") || under(b.target, "RightUpLeg"); }
+        bool arm(bone b){ return under(b.target, "LeftArm") || under(b.target, "RightArm"); }
+        bool leg(bone b){ return under(b.target, "LeftUpLeg") || under(b.target, "RightUpLeg"); }
+
+        return measure().Where(b => g switch{
+            cage_shape.group.torso => !arm(b) && !leg(b),
+            cage_shape.group.arms => arm(b),
+            cage_shape.group.legs => leg(b),
+            cage_shape.group.left => left(b),
+            _ => right(b),
+        });
+    }
+
+    // Move one slider: every bone the group covers takes the ratio between where it was and where
+    // it is now. The sliders multiply where they overlap because each applies to the length it
+    // finds, and an edit made under them is carried along rather than overwritten.
+    public void rescale(cage_shape.group g, float to){
+        var from = shape[g];
+        foreach(var b in group_of(g)){
+            b.length *= to / from;
+        }
+        shape[g] = to;
+    }
+#endif
 
     public void import(){
         if(target.rootBone != null){
@@ -419,10 +494,26 @@ public class mapping_tester : MonoBehaviour{
 
             if(mapping.target.rootBone != null){
                 EditorGUILayout.Space();
+                EditorGUILayout.LabelField("body", EditorStyles.boldLabel);
+
+                // One slider per group, so a proportion is reached in a drag rather than in fifty
+                // three. They overlap and stack (cage_shape), and each carries whatever per-bone
+                // edits sit under it, so the two sections can be used in any order.
+                foreach(cage_shape.group g in Enum.GetValues(typeof(cage_shape.group))){
+                    EditorGUI.BeginChangeCheck();
+                    var to = EditorGUILayout.Slider(g.ToString(), mapping.shape[g], 0.5f, 1.5f);
+                    if(EditorGUI.EndChangeCheck()){
+                        Undo.RecordObjects(mapping.measure().Select(b => (UnityEngine.Object)b.target).Append(mapping).ToArray(), "scale body");
+                        mapping.rescale(g, to);
+                        mapping.update_body();
+                    }
+                }
+
+                EditorGUILayout.Space();
                 EditorGUILayout.LabelField("bone lengths", EditorStyles.boldLabel);
 
                 if(GUILayout.Button("reset bone lengths")){
-                    Undo.RecordObjects(mapping.measure().Select(b => b.target).ToArray(), "reset bone lengths");
+                    Undo.RecordObjects(mapping.measure().Select(b => (UnityEngine.Object)b.target).Append(mapping).ToArray(), "reset bone lengths");
                     mapping.reset_lengths();
                     mapping.update_body();
                 }
