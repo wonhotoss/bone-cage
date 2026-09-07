@@ -144,6 +144,10 @@ public class cage_tune{
                                             // them: all of it, and the neck can hardly shorten `[N20]`
     public float arm_gate_slack = 0f;   // how far inside the head's silhouette an arm ring's top edge may
                                         // come before the gate stops the whole ring coming in `[N20]`
+    public float knee_gate_slack = -0.01f;   // how far past the crotch a knee ring's inner edge may come
+                                             // before the gate stops the whole ring; negative demands a gap
+                                             // instead, and here it must -- stopped flush both rings stand
+                                             // on the midline and the panels still graze `[N20]`
     public float neck_front = 0f;   // how far ahead of the arm rings' top edge the V's floor stands, so
                                     // drawing that edge in over the chest does not drag the throat in with it
     public float sternum_front = 0f;    // the same on the rung below, at the armpits: how far ahead of the
@@ -890,12 +894,32 @@ public static class cage{
             };
         }
 
+        // And each knee stays on its own side of the crotch. The hip bone is purely lateral, so its
+        // length is the pelvis's half width: shorten it and the whole leg walks in, ring and all,
+        // until the knee ring's inner edge crosses the midline and the two legs' walls pass through
+        // each other. What is read is that edge, what moves is the whole ring -- push the inner edge
+        // alone and the outer one keeps coming in, thinning the thigh. The floor is the crotch post,
+        // which no gate moves, so the two sides never read what the other did. The slack is negative
+        // here: stopped flush both rings stand on the midline and the panels between them still
+        // graze, so what is asked for is a gap. The ankle needs no gate -- its ring never reaches the
+        // midline, and what was pierced is the shin panel's knee end, which this carries. `[N20]`
+        cage_gate knee_beside_crotch(string name, int knee, int[] inner, Vector3 axis){
+            return new cage_gate{
+                name = name, moved = Enumerable.Range(knee * 4, 4).ToArray(),
+                probe = inner.Select(c => knee * 4 + c).ToArray(),
+                floor = new[]{ post_hi, post_lo }.Select(end => rings.Length * 4 + at[(hip, edge.mid)] * 2 + end).ToArray(),
+                slack = tune.knee_gate_slack / scale, axis = axis,
+            };
+        }
+
         var k = new cage_constants{
             clearance = clearance / scale,
             gates = new[]{
                 new cage_gate{ name = "head above arms", moved = head_box, probe = head_ring, floor = shoulder_tops, slack = tune.head_gate_slack / scale, axis = up },
                 arm_beside_head("L arm beside head", arm_hi, side),
                 arm_beside_head("R arm beside head", arm_lo, -side),
+                knee_beside_crotch("L knee beside crotch", knee_hi, new[]{ lo_back, lo_front }, side),
+                knee_beside_crotch("R knee beside crotch", knee_lo, new[]{ hi_front, hi_back }, -side),
             },
             joint_name = bones.Select(t => t.name).ToArray(),
             joint_parent = parent,
