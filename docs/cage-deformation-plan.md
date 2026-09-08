@@ -23,7 +23,22 @@ rest cage 안의 모든 메시 정점을 **변형된 cage 안으로 사상**한�
 
 ---
 
-## 채택 방향: Somigliana(품질 목표) + Green(기반 구현)
+## 채택 방향: MVC 유지 (2026-09-07 뒤집힘)
+
+**아래의 원래 판단은 뒤집혔다.** 전제가 "형상·두께 보존을 좌표계가 공급한다"였는데, 이 프로젝트에서 **두께는 케이지의 일**이기 때문이다.
+
+이 시스템의 목표는 뼈 길이 → 케이지의 **선언적 스케일링**이다. "허벅지가 길면 굵다"는 **해부학적** 주장이고 부위마다 다르며 근거가 시각적 설득력이라, 두께 driver가 그것을 링·기둥마다 **선언**한다([cage.md](cage.md) §9). 좌표계에 바라는 것은 그 선언을 **정직하게 옮기는 것**뿐이다.
+
+- **MVC는 linear precision을 갖는다** — 케이지가 어떤 아핀 변화를 하든 안쪽이 정확히 그것을 따른다. 케이지가 유일한 저자로 남는다.
+- **Green은 닮음만 정확히 재현하고 이방성 stretch를 등방 팽창으로 바꾼다**(2D conformal, 3D quasi-conformal). 즉 좌표계가 **자기 몫의 두께를 얹는다.** 그러면 driver 값은 "원하는 두께 − Green이 이미 준 몫"이 되고, 그 몫은 면의 국소 stretch에 따라 부위마다 다르다 — 선언이 선언이 아니게 된다. **그러므로 이 설계에서 Green/Somigliana는 무거운 선택이 아니라 틀린 선택이다.**
+
+**측정으로 확인**(2026-09-07, `cage_sweep --probe`): 한 구간의 단면을 ×k로 넓히고 rest 메시를 사상해 살을 다시 재면, 그 구간의 제어점이 전부 함께 움직일 때 전달비 `(메시−1)/(케이지−1)`가 **0.92 ~ 1.03**(폭·깊이 모두)이고 k = 0.8·1.2·1.5에서 **같다**. 선언이 손실 없이, 선형으로 도착한다 — MVC는 병목이 아니다.
+
+**다음 후보는 Green이 아니라 PMVC/QMVC다.** MVC의 실제 약점은 두께가 아니라 오목부(겨드랑이·가랑이·손가락 사이)의 **음수 가중치**와 비국소성이다(cage.md `[N18]`: 안 31% · 밖 63%, `Σ|w|` 1 → 7). 그것이 문제로 드러나면 PMVC(Lipman 2007) 또는 QMVC(Thiery·Boubekeur 2018)로 간다 — 음수 가중치만 없애고 **순수 정점 결합의 성질(케이지가 유일한 저자)을 유지**하며 두께를 얹지 않는다.
+
+---
+
+### 원래 판단 (기록으로 남김)
 
 성능 무제약 + 형상 보존 요구 → 순수 정점 선형결합(MVC/Harmonic)은 늘이기(stretch)에서 전단·두께붕괴가 나므로 부적합.
 **면 법선 항**을 함께 쓰는 계열이 필수.
@@ -46,8 +61,10 @@ rest cage 안의 모든 메시 정점을 **변형된 cage 안으로 사상**한�
 | MVC (Ju/Floater 2005) | 폐형식, 매우 빠름 | ✗ (전단) | ✗ 음수가중치 | ✓ | 가장 쉬운 baseline |
 | PMVC/QMVC (Lipman'07 / Thiery'18) | 수치/폐형식 | ✗ | ✓ 음수 제거 | ✓ | 오목부 보완, 쿼드케이지(QMVC) |
 | Harmonic (Pixar, Joshi'07) | 볼륨 격자 solve | ✗ | ✓ 강한 오목부 견고 | ✓ | 애니 산업 표준, precompute 무거움 |
-| **Green (Lipman'08)** | 폐형식 | ✓ 준등각 | 보통 | ✗ | **두께 보존, 1차 채택** |
-| **Somigliana (Chen'23)** | precompute+corotational | ✓ + 부피제어 | 보통 | ✗ | **최고 품질, 목표** |
+| **Green (Lipman'08)** | 폐형식 | ✓ 준등각 | 보통 | ✗ | 두께를 **좌표계가** 얹는다 → 이 설계에는 부적합 |
+| **Somigliana (Chen'23)** | precompute+corotational | ✓ + 부피제어 | 보통 | ✗ | 〃, 게다가 가중치가 ×9 |
+
+"형상보존" 열이 이 설계에서는 **장점이 아니라 간섭**이다. 두께는 케이지가 선언하고 좌표계는 그것을 옮긴다 — 그래서 MVC의 ✗(전단)가 곧 "케이지에 정직하다"는 뜻이고, 채택 근거가 된다. 오목부의 ✗만이 남은 약점이며 PMVC/QMVC가 그 열을 ✓로 바꾼다.
 
 ---
 
@@ -90,7 +107,9 @@ MVC 커널은 Unity 밖에서 수치 검증했다(단위 큐브 케이지 + 실�
 partition of unity 1e-16, **linear precision `Σ w_i p_i = p` 1e-15**, affine 재현 1e-15, identity 1e-15, 크라운 링 stretch에 대해 국소·단조 응답.
 알려진 한계도 확인 — 이 plus 자형 케이지는 오목해서 표본 대부분에 **음수 가중치**가 나온다(겨드랑이·가랑이). 두께 붕괴와 함께 Green으로 넘어갈 이유.
 
-## Unity 구현 계획
+## Unity 구현 계획 (철회)
+
+아래는 Green 이식 계획이었다. 채택이 MVC 유지로 뒤집혔으므로 **하지 않는다.** 기록으로 남긴다 — PMVC/QMVC로 갈 때 bind 결과를 에셋으로 굽는 부분은 그대로 쓸 수 있다.
 
 빈 Unity 6 URP 프로젝트(구현 전무)이므로 from scratch. `Assets/Scripts/CageDeform/` 신설.
 
@@ -99,6 +118,8 @@ partition of unity 1e-16, **linear precision `Σ w_i p_i = p` 1e-15**, affine �
 - **`GreenCoordinatesBaker.cs`** — Editor 스크립트. rest cage + 메시 입력 → 좌표 적분 → 에셋 저장. gptoolbox 이식.
 - **`GreenCoordinatesDeformer.cs`** — 런타임. 변형 케이지 정점/법선 → `s_j` 계산 → 정점 재구성 → 메시 갱신.
 - (2차) **`SomiglianaCoordinatesBaker.cs` / `Deformer.cs`** — 동일 인터페이스로 Kelvin 커널 + corotational 확장.
+
+**bind 크기**(참고, 제어점 236 · 면 468 · 정점 36,426, float32): MVC **34 MB** · Green **103 MB** · Somigliana **920 MB**. Somigliana는 이 케이지 해상도로는 그대로 갈 수 없다.
 
 ### 재사용할 참조 구현 / 자료
 - **Green 이식 원본**: gptoolbox `green_coordinates.m` (Alec Jacobson, libigl 기반) — 3D `s_j`·`GCTriInt` 폐형식 포함.
@@ -115,7 +136,8 @@ partition of unity 1e-16, **linear precision `Σ w_i p_i = p` 1e-15**, affine �
 
 1. **단일 전역 케이지는 스켈레톤을 모른다.** 팔이 몸통에 접히면 케이지가 겹쳐 서로 다른 부위가 섞이거나 self-intersection 가능. → 케이지를 몸에 타이트 fit, 필요 시 부위별 세그먼트 케이지 또는 스키닝 병용. (범위 밖이나 케이지 설계에 반영 권고.)
 2. **오목부**(겨드랑이·가랑이·손가락 사이)는 인체 케이지에 필연. Green/Somigliana는 강한 오목부에서 국소 아티팩트 가능 — Somigliana의 corotational이 완화. baseline 대조로 PMVC/Harmonic도 참고.
-3. **Green은 케이지 경계에 정확히 보간되지 않음**(내부 몸엔 대개 무해). 경계 정확도가 필요하면 exact/normalized 변형 또는 Somigliana.
+3. ~~**Green은 케이지 경계에 정확히 보간되지 않음**~~ — 채택하지 않으므로 해당 없음. MVC는 경계에 보간되지만 면 위에서 조건수가 무너지므로 **여유를 갖고 담는다**는 규칙으로 피한다(cage.md `[N18]`, `clearance` 0.5 mm).
+4. **두께는 좌표계가 주지 않는다.** 뼈를 늘여도 단면은 케이지가 선언한 만큼만 두꺼워진다 — 그 선언이 두께 driver이고 아직 없다(cage.md §9). 지금은 길이만 반영된 상태다.
 
 ---
 
