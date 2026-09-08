@@ -544,10 +544,8 @@ public class mapping_tester : MonoBehaviour{
 
                 // One change check over every tuning slider: whichever moved, the whole tune rebakes.
                 EditorGUI.BeginChangeCheck();
-                var arm_hi = EditorGUILayout.Slider("arm ring hi reach", mapping.tune.arm_hi, -0.05f, 0.1f);
-                var arm_outward_hi = EditorGUILayout.Slider("arm ring hi outward", mapping.tune.arm_outward_hi, -0.15f, 0.1f);
-                var arm_lo = EditorGUILayout.Slider("arm ring lo reach", mapping.tune.arm_lo, -0.1f, 0.1f);
-                var arm_outward_lo = EditorGUILayout.Slider("arm ring lo outward", mapping.tune.arm_outward_lo, -0.15f, 0.1f);
+                var arm_tilt = EditorGUILayout.Slider("arm ring tilt (deg)", mapping.tune.arm_tilt, -30f, 45f);
+                var arm_length = EditorGUILayout.Slider("arm ring length", mapping.tune.arm_length, 0.05f, 0.3f);
                 var arm_hi_front = EditorGUILayout.Slider("arm ring hi front reach", mapping.tune.arm_hi_front, -0.1f, 0.1f);
                 var arm_hi_back = EditorGUILayout.Slider("arm ring hi back reach", mapping.tune.arm_hi_back, -0.1f, 0.1f);
                 var arm_lo_front = EditorGUILayout.Slider("arm ring lo front reach", mapping.tune.arm_lo_front, -0.1f, 0.1f);
@@ -579,8 +577,6 @@ public class mapping_tester : MonoBehaviour{
                 var ankle_tilt = EditorGUILayout.Slider("ankle ring tilt (deg)", mapping.tune.ankle_tilt, 0f, 80f);
                 var ankle_front = EditorGUILayout.Slider("ankle ring front reach", mapping.tune.ankle_front, -0.1f, 0.1f);
                 var ankle_back = EditorGUILayout.Slider("ankle ring back reach", mapping.tune.ankle_back, -0.05f, 0.1f);
-                var delt_along = EditorGUILayout.Slider("delt post along (ratio)", mapping.tune.delt_along, 0.1f, 0.9f);
-                var delt_up = EditorGUILayout.Slider("delt post up reach", mapping.tune.delt_up, -0.05f, 0.1f);
                 var elbow_hi = EditorGUILayout.Slider("elbow ring hi reach", mapping.tune.elbow_hi, -0.05f, 0.1f);
                 var wrist_thumb = EditorGUILayout.Slider("wrist ring thumb-side reach", mapping.tune.wrist_thumb, -0.05f, 0.05f);
                 var wrist_pinky = EditorGUILayout.Slider("wrist ring pinky-side reach", mapping.tune.wrist_pinky, -0.05f, 0.05f);
@@ -590,10 +586,8 @@ public class mapping_tester : MonoBehaviour{
                 var valley_reach = EditorGUILayout.Slider("palm valley reach", mapping.tune.valley_reach, 0f, 0.03f);
                 if(EditorGUI.EndChangeCheck()){
                     Undo.RecordObject(mapping, "tune cage");
-                    mapping.tune.arm_hi = arm_hi;
-                    mapping.tune.arm_outward_hi = arm_outward_hi;
-                    mapping.tune.arm_lo = arm_lo;
-                    mapping.tune.arm_outward_lo = arm_outward_lo;
+                    mapping.tune.arm_tilt = arm_tilt;
+                    mapping.tune.arm_length = arm_length;
                     mapping.tune.arm_hi_front = arm_hi_front;
                     mapping.tune.arm_hi_back = arm_hi_back;
                     mapping.tune.arm_lo_front = arm_lo_front;
@@ -625,8 +619,6 @@ public class mapping_tester : MonoBehaviour{
                     mapping.tune.ankle_tilt = ankle_tilt;
                     mapping.tune.ankle_front = ankle_front;
                     mapping.tune.ankle_back = ankle_back;
-                    mapping.tune.delt_along = delt_along;
-                    mapping.tune.delt_up = delt_up;
                     mapping.tune.elbow_hi = elbow_hi;
                     mapping.tune.wrist_thumb = wrist_thumb;
                     mapping.tune.wrist_pinky = wrist_pinky;

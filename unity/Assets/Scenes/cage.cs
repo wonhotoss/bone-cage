@@ -10,9 +10,7 @@ using UnityEngine;
 // are stitched into flat panels. Posts on the midline (see cage_post) -- one per ring across the
 // body, plus the bottom of the neck's V and the sternum -- split the torso and head panels into a
 // left and a right half; the arm rings' top edges are drawn in to meet at the neck post, so the V
-// parts the torso from the head. A post on top of each upper arm, where the deltoid ends, makes a
-// second V with the arm ring at the armpit: the wedge between them is the shoulder, and the upper
-// arm hangs from the tilted pair armpit-deltoid. Below the spine ring the pelvis branches into the legs the way a
+// parts the torso from the head. Below the spine ring the pelvis branches into the legs the way a
 // palm branches into fingers: three posts -- the crotch and the two outer hips -- span a pentagon
 // with the spine ring, and each leg hangs from the tilted pair crotch-hip, meeting the other at
 // the crotch. Down a leg the ring frames turn with it: the ankle ring leans back through the
@@ -52,6 +50,9 @@ public class cage_ring{
     public Vector3 d;           // in-plane axis separating the front and back panels
     public float along_hi, along_lo;    // each edge's offset past its farthest anchor, along n; unequal on a tilted ring
     public float s_lo, s_hi;    // reach beyond the anchors' span, on the -s and +s side
+    public int[] girth;         // the joint whose bone, at its current over its rest length, scales the four
+                                // values above -- the ring's silhouette follows that bone; empty and it keeps
+                                // its rest size. The arm rings follow the clavicle.
     public int[] hi_between, lo_between;    // two placed control points the edge lies between: its s
                                             // coordinate is theirs, taken where the ring's plane falls
                                             // between their n coordinates; empty and the edge keeps its
@@ -113,8 +114,7 @@ public class cage_constants{
 
     // Vertex pairs: the edges the topology tables declare, which tris alone cannot give back. Each
     // consecutive pair of posts along a plate's outline or a wall's chain is a ring of the shell --
-    // the tilted hip ring is the crotch post beside an outer hip post, the shoulder ring is a
-    // deltoid post beside an arm ring's armpit edge -- while what the ladder adds to fill the panels
+    // the tilted hip ring is the crotch post beside an outer hip post -- while what the ladder adds to fill the panels
     // between them, its rungs and the diagonal splitting each quad, no row of any table names.
     // Triangulating loses the difference, so the pairs are kept. Read by the debug wire (frame).
     public int[] grid;
@@ -131,10 +131,9 @@ public class cage_constants{
 // in bake() and into the design document, and its slider goes. Scene units, like the recipes.
 [Serializable]
 public class cage_tune{
-    public float arm_hi = 0.05f;    // hi reach of both arm rings: how far their top edge clears the shoulder
-    public float arm_outward_hi = 0.05f;    // outward of that top edge alone; negative draws it in over the trapezius
-    public float arm_lo = 0f;               // lo reach of both arm rings: their bottom edge below the armpit
-    public float arm_outward_lo = 0.05f;    // outward of that bottom edge alone; negative draws it into the armpit
+    public float arm_tilt = 7f;     // degrees the arm rings lean in at the top about the depth axis, seen from
+                                    // the front: the raglan seam from the armpit up over the trapezius
+    public float arm_length = 0.16f;    // the seam's length, armpit edge to top edge, the shoulder joint at its middle
     public float arm_hi_front = 0f, arm_hi_back = 0f;   // depth reach of the arm rings' top edge, across the trapezius
     public float arm_lo_front = 0f, arm_lo_back = 0f;   // and of their bottom edge, across the armpit
     public float head_tilt = 25f;       // degrees the head ring's plane leans forward about the side axis, chin down
@@ -171,8 +170,6 @@ public class cage_tune{
     public float ankle_tilt = 45f;      // degrees the ankle rings' plane leans back from horizontal about the side axis: heel down, instep up
     public float ankle_front = 0f;      // depth reach of the ankle rings along their tilted d: up the instep (front),
     public float ankle_back = 0f;       // down behind the heel (back) -- which is also the height the sole is levelled to
-    public float delt_along = 0.4f;     // ratio: where along the upper arm (Arm -> ForeArm) the deltoid post stands
-    public float delt_up = 0f;          // its reach above the upper arm's flesh there
     public float elbow_hi = 0.05f;      // hi reach of both elbow rings: how far their top edge clears the elbow
     public float wrist_thumb = 0f;      // reach of both wrist rings across the palm, past the measured width: thumb side
     public float wrist_pinky = 0f;      // and pinky side; negative draws the ring in over the wrist
@@ -281,10 +278,14 @@ public static class cage{
             var a_hi = r.anchor_hi.Select(j => jc[j]).ToArray();
             var a_lo = r.anchor_lo.Select(j => jc[j]).ToArray();
 
-            var plane_hi = r.n * (a_hi.Max(p => Vector3.Dot(p, r.n)) + r.along_hi);
-            var plane_lo = r.n * (a_lo.Max(p => Vector3.Dot(p, r.n)) + r.along_lo);
-            var edge_hi = r.s * (a_hi.Max(p => Vector3.Dot(p, r.s)) + r.s_hi);
-            var edge_lo = r.s * (a_lo.Min(p => Vector3.Dot(p, r.s)) - r.s_lo);
+            // The silhouette follows the girth bone: its current length over its rest length.
+            var by = r.girth.Length == 0 ? 1f
+                : r.girth.Select(j => (jc[j] - jc[k.joint_parent[j]]).magnitude / k.joint_rest_len[j]).Single();
+
+            var plane_hi = r.n * (a_hi.Max(p => Vector3.Dot(p, r.n)) + r.along_hi * by);
+            var plane_lo = r.n * (a_lo.Max(p => Vector3.Dot(p, r.n)) + r.along_lo * by);
+            var edge_hi = r.s * (a_hi.Max(p => Vector3.Dot(p, r.s)) + r.s_hi * by);
+            var edge_lo = r.s * (a_lo.Min(p => Vector3.Dot(p, r.s)) - r.s_lo * by);
 
             var front = r.d_hi_anchor.Max(j => Vector3.Dot(jc[j], r.d));
             var back = r.d_lo_anchor.Min(j => Vector3.Dot(jc[j], r.d));
@@ -329,10 +330,8 @@ public static class cage{
     // spine between the arm rings' top edges: the bottom of the neck's V, and the sternum level
     // with the armpits. hip is the pelvis: its hi and lo are the outer hip posts, its mid the
     // crotch, so crotch-hip reads as a tilted ring the way a finger's branch ring is two palm posts.
-    // The tips are the ends of the toes, a post on each side standing on a virtual end bone. delt
-    // is one post on top of the upper arm, where the deltoid ends: with the arm ring's bottom
-    // (armpit) edge it is the ring the upper arm hangs from, so the station has a hi and no lo.
-    const int neck = 17, sternum = 18, hip = 19, tip_hi = 20, tip_lo = 21, delt_hi = 22, delt_lo = 23;
+    // The tips are the ends of the toes, a post on each side standing on a virtual end bone.
+    const int neck = 17, sternum = 18, hip = 19, tip_hi = 20, tip_lo = 21;
 
     // A body control point: one silhouette edge of a ring, or the midline post its front and back
     // edges leave in the middle. hi/lo name the two sides of the silhouette axis, so an "hi" limb
@@ -360,13 +359,10 @@ public static class cage{
         new[]{ (arm_lo, edge.hi), (head, edge.lo), (head, edge.mid), (neck, edge.mid) },
         new[]{ (crown, edge.mid), (crown, edge.hi), (head, edge.hi), (head, edge.mid) },
         new[]{ (head, edge.mid), (head, edge.lo), (crown, edge.lo), (crown, edge.mid) },
-        // The shoulder: the wedge between the arm ring and the deltoid ring, which share the armpit
-        // edge -- a triangle on each face. Then the upper arm from the deltoid ring to the elbow.
-        new[]{ (arm_hi, edge.hi), (delt_hi, edge.hi), (arm_hi, edge.lo) },
-        new[]{ (arm_lo, edge.lo), (delt_lo, edge.hi), (arm_lo, edge.hi) },
-        new[]{ (delt_hi, edge.hi), (elbow_hi, edge.hi), (elbow_hi, edge.lo), (arm_hi, edge.lo) },
+        // The arms: the upper arm straight from the arm ring to the elbow, then the forearm.
+        new[]{ (arm_hi, edge.hi), (elbow_hi, edge.hi), (elbow_hi, edge.lo), (arm_hi, edge.lo) },
         new[]{ (elbow_hi, edge.hi), (wrist_hi, edge.hi), (wrist_hi, edge.lo), (elbow_hi, edge.lo) },
-        new[]{ (arm_lo, edge.lo), (elbow_lo, edge.lo), (elbow_lo, edge.hi), (delt_lo, edge.hi) },
+        new[]{ (arm_lo, edge.lo), (elbow_lo, edge.lo), (elbow_lo, edge.hi), (arm_lo, edge.hi) },
         new[]{ (elbow_lo, edge.lo), (wrist_lo, edge.lo), (wrist_lo, edge.hi), (elbow_lo, edge.hi) },
         // The pelvis: the pentagon spine.hi - L hip - crotch - R hip - spine.lo, the back of the
         // hand this palm is, split on the midline like the torso above it.
@@ -396,7 +392,7 @@ public static class cage{
     // the crown and the toes. The run down one leg's inner side, through the crotch and up the
     // other is the wall between the thighs.
     static readonly (int ring, edge e)[][] perimeter = {
-        new[]{ (crown, edge.hi), (head, edge.hi), (arm_hi, edge.hi), (delt_hi, edge.hi), (elbow_hi, edge.hi), (wrist_hi, edge.hi) },
+        new[]{ (crown, edge.hi), (head, edge.hi), (arm_hi, edge.hi), (elbow_hi, edge.hi), (wrist_hi, edge.hi) },
         new[]{ (wrist_hi, edge.lo), (elbow_hi, edge.lo), (arm_hi, edge.lo), (spine2, edge.hi), (spine1, edge.hi), (spine, edge.hi),
                (hip, edge.hi), (knee_hi, edge.hi), (ankle_hi, edge.hi), (toe_hi, edge.hi), (tip_hi, edge.hi),
                (tip_hi, edge.lo), (toe_hi, edge.lo), (ankle_hi, edge.lo), (knee_hi, edge.lo),
@@ -404,7 +400,7 @@ public static class cage{
                (knee_lo, edge.hi), (ankle_lo, edge.hi), (toe_lo, edge.hi), (tip_lo, edge.hi),
                (tip_lo, edge.lo), (toe_lo, edge.lo), (ankle_lo, edge.lo), (knee_lo, edge.lo), (hip, edge.lo),
                (spine, edge.lo), (spine1, edge.lo), (spine2, edge.lo), (arm_lo, edge.lo), (elbow_lo, edge.lo), (wrist_lo, edge.lo) },
-        new[]{ (wrist_lo, edge.hi), (elbow_lo, edge.hi), (delt_lo, edge.hi), (arm_lo, edge.hi), (head, edge.lo), (crown, edge.lo), (crown, edge.mid), (crown, edge.hi) },
+        new[]{ (wrist_lo, edge.hi), (elbow_lo, edge.hi), (arm_lo, edge.hi), (head, edge.lo), (crown, edge.lo), (crown, edge.mid), (crown, edge.hi) },
     };
 
     // The five fingers, thumb first. A hand's silhouette axis runs from the thumb (+s) to the pinky
@@ -462,8 +458,7 @@ public static class cage{
         public float outward_hi;    // the same along n, per edge: it moves that edge's plane out, or
         public float outward_lo;    // in when negative. The cross-section is still measured at the
                                     // anchor, so an edge moved along a limb keeps the girth it had
-                                    // there. Unequal values tilt the ring, as the arm rings' hi edge
-                                    // is drawn in to sit on the trapezius.
+                                    // there. Unequal values tilt the ring.
     }
 
     public static cage_constants bake(SkinnedMeshRenderer source, cage_tune tune){
@@ -504,12 +499,14 @@ public static class cage{
         // turned by that tilt, and it sits a little above the Head joint along its own normal.
         var tilt = tune.head_tilt * Mathf.Deg2Rad;
         recipes[head] = new recipe{ name = "head", anchor = js("Head"), wrap = js("Head"), n = Mathf.Cos(tilt) * up + Mathf.Sin(tilt) * depth, s = side, d = Mathf.Cos(tilt) * depth - Mathf.Sin(tilt) * up, kind = fit.split, outward_hi = tune.head_offset, outward_lo = tune.head_offset, front = (tune.head_front, tune.head_front), back = (tune.head_back, tune.head_back) };
-        recipes[arm_hi] = new recipe{ name = "L arm", anchor = js("LeftArm"), wrap = js("LeftShoulder"), n = side, s = up, d = depth, kind = fit.joint, hi = tune.arm_hi, lo = tune.arm_lo, outward_hi = tune.arm_outward_hi, outward_lo = tune.arm_outward_lo, front = (tune.arm_hi_front, tune.arm_lo_front), back = (tune.arm_hi_back, tune.arm_lo_back) };
+        // The arm rings' silhouette edges are not measured: they are set below as a line through the
+        // shoulder joint. Only their depth comes from the flesh.
+        recipes[arm_hi] = new recipe{ name = "L arm", anchor = js("LeftArm"), wrap = js("LeftShoulder"), n = side, s = up, d = depth, kind = fit.joint, front = (tune.arm_hi_front, tune.arm_lo_front), back = (tune.arm_hi_back, tune.arm_lo_back) };
         recipes[elbow_hi] = new recipe{ name = "L elbow", anchor = js("LeftForeArm"), wrap = js("LeftArm"), n = side, s = up, d = depth, kind = fit.joint, hi = tune.elbow_hi };
         // The wrist rings hand the arms over to the hands, which measure them: their extents are
         // overwritten below, since both need flesh windows the generic measure cannot express.
         recipes[wrist_hi] = new recipe{ name = "L wrist", anchor = js("LeftHand"), wrap = js("LeftHand"), n = side, s = up, d = depth, kind = fit.joint };
-        recipes[arm_lo] = new recipe{ name = "R arm", anchor = js("RightArm"), wrap = js("RightShoulder"), n = -side, s = up, d = depth, kind = fit.joint, hi = tune.arm_hi, lo = tune.arm_lo, outward_hi = tune.arm_outward_hi, outward_lo = tune.arm_outward_lo, front = (tune.arm_hi_front, tune.arm_lo_front), back = (tune.arm_hi_back, tune.arm_lo_back) };
+        recipes[arm_lo] = new recipe{ name = "R arm", anchor = js("RightArm"), wrap = js("RightShoulder"), n = -side, s = up, d = depth, kind = fit.joint, front = (tune.arm_hi_front, tune.arm_lo_front), back = (tune.arm_hi_back, tune.arm_lo_back) };
         recipes[elbow_lo] = new recipe{ name = "R elbow", anchor = js("RightForeArm"), wrap = js("RightArm"), n = -side, s = up, d = depth, kind = fit.joint, hi = tune.elbow_hi };
         recipes[wrist_lo] = new recipe{ name = "R wrist", anchor = js("RightHand"), wrap = js("RightHand"), n = -side, s = up, d = depth, kind = fit.joint };
         // The spine ring is the torso panel's bottom edge, level across the Spine joint; it wraps
@@ -586,6 +583,7 @@ public static class cage{
                 along_lo = past + r.outward_lo / scale,
                 s_lo = lo.Min(j => Vector3.Dot(rest[j], r.s)) - lo_s + r.lo / scale,
                 s_hi = hi_s - hi.Max(j => Vector3.Dot(rest[j], r.s)) + r.hi / scale,
+                girth = new int[0],
                 hi_between = new int[0],
                 lo_between = new int[0],
                 hi_front = hi_d - anchors.Max(p => Vector3.Dot(p, r.d)) + r.front.hi / scale,
@@ -596,6 +594,23 @@ public static class cage{
         }
 
         var rings = recipes.Select(measure).ToArray();
+
+        // Seen from the front, an arm ring is a line through the shoulder joint: the raglan seam,
+        // leaning in at the top so it runs from the armpit up over the trapezius, of a declared
+        // length with the joint at its middle. The two edges are its ends -- up and in for the top,
+        // down and out for the armpit -- so the ring is not measured across, only through (depth).
+        // The seam's length follows the clavicle, the bone ending on the ring's own anchor: a wider
+        // shoulder girdle is a thicker shoulder.
+        var raglan = tune.arm_tilt * Mathf.Deg2Rad;
+        var seam = tune.arm_length * 0.5f / scale;
+        foreach(var slot in new[]{ arm_hi, arm_lo }){
+            rings[slot].s_hi = seam * Mathf.Cos(raglan);
+            rings[slot].s_lo = seam * Mathf.Cos(raglan);
+            rings[slot].along_hi = -seam * Mathf.Sin(raglan);
+            rings[slot].along_lo = seam * Mathf.Sin(raglan);
+            rings[slot].girth = recipes[slot].anchor;
+        }
+
         var posts = new List<cage_post>();
         var plates = new List<(int hi, int lo)[]>();
         var walls = new List<(int hi, int lo)[]>();
@@ -622,7 +637,7 @@ public static class cage{
         // ring whose band it closes, so it stays level with that ring's edges however they move.
         // On a ring across the body: exactly at the midpoint of its edges, anchored on the joint
         // that places them and offset by whatever the rest midpoint is off that joint.
-        var rest_corners = ring_corners(new cage_constants{ rings = rings }, rest);
+        var rest_corners = ring_corners(new cage_constants{ rings = rings, joint_parent = parent, joint_rest_len = rest_len }, rest);
         void midline(int slot, string joint){
             var r = rings[slot];
             var anchor = js(joint);
@@ -712,36 +727,6 @@ public static class cage{
         }
         foot("Left", "L", ankle_hi, toe_hi, tip_hi);
         foot("Right", "R", ankle_lo, toe_lo, tip_lo);
-
-        // The deltoid post: on top of the upper arm, delt_along of the way from the shoulder joint
-        // to the elbow, up at the top of the arm's flesh there. With the arm ring's armpit edge it
-        // makes the ring the upper arm hangs from, tilted from the armpit up and out -- a V with the
-        // arm ring seen from the front, the shoulder in the wedge between. Sitting on the bone as an
-        // affine combination, it slides along when the upper arm is lengthened. Its depth is the
-        // arm's there, hung on the two joints it stands between.
-        void delt(string prefix, string tag, int station){
-            var shoulder = index[prefix + "Arm"];
-            var elbow = index[prefix + "ForeArm"];
-            var g = tune.delt_along;
-            var anchor = new[]{ shoulder, elbow };
-            var weight = new[]{ 1f - g, g };
-            var seat = rest[shoulder] * (1f - g) + rest[elbow] * g;
-
-            var along = dir[elbow];
-            var window = slab * rest_len[elbow];
-            var meat = flesh[shoulder].Where(p => Mathf.Abs(Vector3.Dot(p - seat, along)) <= window).ToArray();
-            var (_, top) = inflate(meat.Min(p => Vector3.Dot(p, up)), meat.Max(p => Vector3.Dot(p, up)));
-            var (back, front) = inflate(meat.Min(p => Vector3.Dot(p, depth)), meat.Max(p => Vector3.Dot(p, depth)));
-
-            posts.Add(new cage_post{
-                name = $"{tag} delt", anchor = anchor, weight = weight, reach = up * (top - Vector3.Dot(seat, up) + tune.delt_up / scale), d = depth,
-                d_lo_anchor = anchor, d_hi_anchor = anchor,
-                d_lo = anchor.Min(j => Vector3.Dot(rest[j], depth)) - back, d_hi = front - anchor.Max(j => Vector3.Dot(rest[j], depth)),
-            });
-            at[(station, edge.hi)] = posts.Count - 1;
-        }
-        delt("Left", "L", delt_hi);
-        delt("Right", "R", delt_lo);
 
         // A body control point as a vertex pair, front then back: a post where the station has one,
         // otherwise a ring's silhouette edge.
@@ -899,8 +884,8 @@ public static class cage{
         // head's silhouette: the wall down from the head's side leans in and the neck panel folds
         // onto the head panel. What is read is that edge; what moves is the whole ring, the way the
         // head is lifted as a box, so the ring keeps its raglan tilt and merely stops coming in --
-        // pushing the one edge out would tilt it the other way. The elbow ring and the deltoid post
-        // stay where their bones put them. The head is read for its widest corner on that side, so
+        // pushing the one edge out would tilt it the other way. The elbow ring stays where its bone
+        // puts it. The head is read for its widest corner on that side, so
         // its tilt does not enter; the two gates move along side and the head gate along up, so
         // neither reads what the other moves and their order is immaterial. At rest the edge clears
         // the head by several centimetres and nothing moves. `[N20]`
@@ -1233,7 +1218,7 @@ public static class cage{
     // Debug view: the edges this document itself declares -- every ring, every post, and the grid
     // the topology tables lay between them (cage_constants.grid). A ring is a rectangle over four
     // vertices, and the corner constants run round it in order; a finger ring is two posts under one
-    // name; a branch ring -- hip beside crotch, deltoid beside armpit -- is two posts the tables put
+    // name; a branch ring -- hip beside crotch -- is two posts the tables put
     // side by side, which is why the grid is needed to see it. What the ladder adds to fill the
     // panels, its rungs and one diagonal per quad, answers to no row of any table and stays out, so
     // a wire drawn from this reads as the recipe rather than as the mesh.
