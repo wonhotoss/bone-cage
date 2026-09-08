@@ -227,7 +227,7 @@ public static class cage{
     // Forward kinematics: place every joint from its parent along the baked (invariant) rest
     // direction, scaled to the current bone length. Directions never change under length edits,
     // so this reproduces the live skeleton exactly.
-    static Vector3[] joint_centers(IReadOnlyDictionary<string, float> lengths, cage_constants k){
+    public static Vector3[] joint_centers(IReadOnlyDictionary<string, float> lengths, cage_constants k){
         var jc = new Vector3[k.joint_name.Length];
         for(var j = 0; j < jc.Length; j++){
             var p = k.joint_parent[j];

@@ -80,6 +80,7 @@ static class sweep{
         var count = int.Parse(arg(args, "--random") ?? "20000");
         var seed = int.Parse(arg(args, "--seed") ?? "1");
         var skip = (arg(args, "--skip") ?? "").Split(',').Where(t => t.Length > 0).ToArray();
+        var probe_by = float.Parse(arg(args, "--probe") ?? "0");
 
         if(!File.Exists(Path.Combine(data, "constants.json"))){
             Console.Error.WriteLine($"no sweep data in {data} -- press \"export sweep data\" on the mapping tester first");
@@ -94,6 +95,11 @@ static class sweep{
         var rest_cage = cage.points(new Dictionary<string, float>(), d.k);
         var bound = cage_deform.bind(cage_coords.mvc, d.pts, rest_cage, d.k.tris);
         Console.WriteLine($"bound the rest mesh to the rest cage through {cage_coords.mvc} in {clock.Elapsed.TotalSeconds:0.0} s");
+
+        if(probe_by > 0f){
+            probe(d, bound, probe_by);
+            return 0;
+        }
 
         var baseline = check(rest(d), d, bound);
         Console.WriteLine($"rest baseline: {baseline.outside} / {d.pts.Length} vertices outside, {baseline.collide} triangles in self-collision");
@@ -264,6 +270,99 @@ static class sweep{
 
     static float rest_length(rest_data d, string joint){
         return d.k.joint_rest_len[Array.IndexOf(d.k.joint_name, joint)];
+    }
+
+    // How much of a ring's own widening the mesh inside it actually takes. The thickness driver
+    // will declare a section as a ratio on the rest one, so what has to be known first is what that
+    // declaration is worth once the coordinates have carried it: widen one ring by k, map the rest
+    // mesh through the cage that makes, and measure the flesh across the same window the bake
+    // measured it in. Bones stay at rest throughout, so nothing but the one ring has moved.
+    //
+    // A single ring is a local bulge, not an affine widening -- the rings either side of it stay
+    // put and pull back -- so the transfer is expected below k. The last row widens every ring at
+    // once, which is what a driver on the whole body would do, and is the upper end of the range.
+    static void probe(rest_data d, cage_bind bound, float by){
+        // The bake's measurement window, mirrored: flesh within this much of the ring's plane,
+        // scaled to the anchor bone. See cage.md 1 (measurement window).
+        const float window = 0.25f;
+
+        var lengths = d.joint.ToDictionary(j => j, j => rest_length(d, j));
+        var jc = cage.joint_centers(lengths, d.k);
+
+        // The flesh a ring speaks for: its anchors' subtree, as gather_flesh assigns it, cut down to
+        // the window so a spine ring takes the waist rather than everything above it.
+        bool descends(int joint, int of){
+            for(var j = joint; j >= 0; j = d.k.joint_parent[j]){
+                if(j == of){
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // A section is the ring and the midline post standing on it: the post's ends are baked at
+        // the ring's own depth (cage.md 3b), so scaling the ring alone leaves the midline behind and
+        // the panel folds inward there -- seen from above the section becomes a bowtie, which is not
+        // a wider body. So the two move together, which is what "widen a section" has to mean.
+        // Not every post on a ring is named for it: neck mid and sternum mid stand on the arm rings,
+        // and the hand is posts throughout, so those stay put here and their rows read low.
+        void scale(cage_ring r, float k){
+            r.s_hi *= k; r.s_lo *= k;
+            r.hi_front *= k; r.lo_front *= k; r.hi_back *= k; r.lo_back *= k;
+            foreach(var m in d.k.posts.Where(q => q.name == $"{r.name} mid")){
+                m.d_hi *= k; m.d_lo *= k;
+            }
+        }
+
+        Vector3[] mapped(cage_ring[] widened){
+            foreach(var t in widened){
+                scale(t, by);
+            }
+            var live = cage.points(lengths, d.k);
+            foreach(var t in widened){
+                scale(t, 1f / by);
+            }
+            return cage_deform.map(bound, live);
+        }
+
+        (float across, float deep) spread(Vector3[] p, cage_ring r, int[] at){
+            return (at.Max(i => Vector3.Dot(p[i], r.s)) - at.Min(i => Vector3.Dot(p[i], r.s)),
+                at.Max(i => Vector3.Dot(p[i], r.d)) - at.Min(i => Vector3.Dot(p[i], r.d)));
+        }
+
+        // Every ring widened at once is what a driver on the whole body does, and the upper end of
+        // what one ring alone can be worth; it is the same cage for every row, so map it once.
+        var all = mapped(d.k.rings);
+
+        Console.WriteLine();
+        Console.WriteLine($"widen a ring's section by x{by:0.##}, bones at rest, and measure the flesh across the bake's own window.");
+        Console.WriteLine("transfer = (mesh - 1) / (cage - 1): 1.00 is the declaration arriving whole.");
+        Console.WriteLine();
+        Console.WriteLine("| ring | flesh | rest across / deep (cm) | that ring, across / deep | every ring, across / deep |");
+        Console.WriteLine("|---|---|---|---|---|");
+
+        foreach(var r in d.k.rings){
+            var anchors = r.anchor_hi.Concat(r.anchor_lo).Distinct().ToArray();
+            var plane = anchors.Max(j => Vector3.Dot(jc[j], r.n));
+            var reach = window * anchors.Max(j => d.k.joint_rest_len[j]);
+            var at = Enumerable.Range(0, d.pts.Length)
+                .Where(i => anchors.Any(j => descends(d.flesh[i], j))
+                    && Math.Abs(Vector3.Dot(d.pts[i], r.n) - plane) <= reach).ToArray();
+
+            if(at.Length == 0){
+                Console.WriteLine($"| {r.name} | 0 | -- no flesh in the window -- | | |");
+                continue;
+            }
+
+            var was = spread(d.pts, r, at);
+            var one = spread(mapped(new[]{ r }), r, at);
+            var every = spread(all, r, at);
+            string rate((float across, float deep) now){
+                return $"**{(now.across / was.across - 1f) / (by - 1f):0.00}** / **{(now.deep / was.deep - 1f) / (by - 1f):0.00}**";
+            }
+            Console.WriteLine($"| {r.name} | {at.Length} | {was.across * 10000:0.0} / {was.deep * 10000:0.0} | "
+                + $"{rate(one)} | {rate(every)} |");
+        }
     }
 
     // A case is clean when nothing pierces the shell. Vertices that leave the deformed cage are
