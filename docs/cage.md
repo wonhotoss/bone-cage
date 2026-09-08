@@ -49,27 +49,27 @@
 
 ## 3. 몸통 링 — `recipes[...]`
 
-열: **앵커** = 링을 놓는 관절(변별로 분리됨, §6). **감쌀 살** = 서브트리 루트. **종류** cap/joint/split = 측정 창(§1). `↷θ` = `side` 축으로 θ만큼 앞으로 기울인 축(`n = cos·up + sin·depth`, `d = cos·depth − sin·up`). 여유는 씬 단위, 빈칸 = 0. `front`/`back`은 hi/lo 변별 — 한 값이면 양 변 공통, `a / b`면 hi 변 / lo 변.
+열: **앵커** = 링을 놓는 관절(변별로 분리됨, §6). **감쌀 살** = 서브트리 루트. **종류** cap/joint/split = 측정 창(§1). **width** = `s` 여유를 구동하는 관절 쌍과 가중치(§6, `[N21]`) — 빈칸이면 잰 값에 고정. `↷θ` = `side` 축으로 θ만큼 앞으로 기울인 축(`n = cos·up + sin·depth`, `d = cos·depth − sin·up`). 여유는 씬 단위, 빈칸 = 0. `front`/`back`은 hi/lo 변별 — 한 값이면 양 변 공통, `a / b`면 hi 변 / lo 변.
 
-| 이름 | 앵커 | 감쌀 살 | n | s | d | 종류 | front | back | hi | lo | outward hi | outward lo | 비고 |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `crown` | Head | Head | +up | side | depth | cap | 0 | 0 | | | | | 정수리 캡. `front`·`back`은 튠 중(§7) — 가슴~배꼽 정중선과 날개뼈가 몸통 판을 뚫음 |
-| `head` | Head | Head | up↷25° | side | depth↷25° | split | 0 | 0 | | | 0.023 | 0.023 | 머리–목 분리 평면. 기울기·오프셋은 씬의 head splitter에서 읽음; 기울기·오프셋·`front`·`back` 튠 중(§7) `[N12]` |
-| `L arm` | LeftArm | LeftShoulder | +side | up | depth | joint | 튠 / 튠 | 튠 / 튠 | 튠(§7) | 튠(§7) | 튠(§7) | 튠(§7) | 몸통 판과 어깨 판의 경계 `[N2]`. `lo`(겨드랑이) 변은 delt 링과 공유 §3e `[N15]`. 모든 여유 튠 중(§7) |
-| `L elbow` | LeftForeArm | LeftArm | +side | up | depth | joint | | | 튠(§7, 초기 0.05) | | | | |
-| `L wrist` | LeftHand | LeftHand | +side | up | depth | joint | | | | | | | 단면은 손이 덮어씀 §4a |
-| `R arm` | RightArm | RightShoulder | −side | up | depth | joint | 튠 / 튠 | 튠 / 튠 | 튠(§7) | 튠(§7) | 튠(§7) | 튠(§7) | `[N2]`. 모든 여유 튠 중(§7) |
-| `R elbow` | RightForeArm | RightArm | −side | up | depth | joint | | | 튠(§7, 초기 0.05) | | | | L elbow와 공통 |
-| `R wrist` | RightHand | RightHand | −side | up | depth | joint | | | | | | | §4a |
-| `spine` | Spine | Hips | +up | side | depth | joint | 0 | 0 | | | | | 몸통 판의 아랫변, 허리. 아래는 골반 기둥 §3c `[N13]`. pelvis를 줄이면 링이 고관절 기둥 아래로 내려가는데, 그것은 §6b `spine above hips`가 링째 멈춰 막는다 `[N16]`. `front`·`back`은 튠 중(§7) |
-| `spine1` | Spine1 | Hips | +up | side | depth | joint | 0 | 0 | | | | | 배. 몸통 판의 가로대 하나 `[N10]`. `front`·`back` 튠 중(§7) |
-| `spine2` | Spine2 | Hips | +up | side | depth | joint | 0 | 0 | | | | | 아랫가슴. 〃 |
-| `L knee` | LeftLeg | LeftUpLeg | −up | side | depth | joint | | 튠(§7, 초기 0.1) | 튠(§7) | | | | 자기 다리 살만 잰다 `[N13]`. `hi` = 바깥쪽 변 |
-| `L ankle` | LeftFoot | LeftLeg | −up↷45° | side | depth↷45° | joint | 튠(§7) | 튠(§7) | | | | | 발목. Foot 관절을 지나 뒤로 기울어진 링 — 뒤꿈치에서 발등–정강이 연결부로. 기울기·`front`(발등 쪽)·`back`(뒤꿈치 쪽) 튠 중(§7) `[N14]` |
-| `L toe` | LeftToeBase | LeftFoot | +depth | side | up | joint | | (바닥) | | | | | 발볼. 발 방향에 직교하는 세로 링, front = 발등, back = 발바닥. **뒤(바닥)의 d 앵커는 Foot**, 여유 = ankle 링 바닥 높이까지 — 발바닥이 뒤꿈치와 수평 `[N14]` |
-| `R knee` | RightLeg | RightUpLeg | −up | side | depth | joint | | 튠(§7, 초기 0.1) | | 튠(§7) | | | `s = side`라 `lo`가 바깥쪽 변; 여유는 L knee와 공통 |
-| `R ankle` | RightFoot | RightLeg | −up↷45° | side | depth↷45° | joint | 튠(§7) | 튠(§7) | | | | | `[N14]` |
-| `R toe` | RightToeBase | RightFoot | +depth | side | up | joint | | (바닥) | | | | | `[N14]` |
+| 이름 | 앵커 | 감쌀 살 | n | s | d | 종류 | front | back | hi | lo | outward hi | outward lo | width | 비고 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `crown` | Head | Head | +up | side | depth | cap | 0 | 0 | | | | | | 정수리 캡. `front`·`back`은 튠 중(§7) — 가슴~배꼽 정중선과 날개뼈가 몸통 판을 뚫음 |
+| `head` | Head | Head | up↷25° | side | depth↷25° | split | 0 | 0 | | | 0.023 | 0.023 | | 머리–목 분리 평면. 기울기·오프셋은 씬의 head splitter에서 읽음; 기울기·오프셋·`front`·`back` 튠 중(§7) `[N12]` |
+| `L arm` | LeftArm | LeftShoulder | +side | up | depth | joint | 튠 / 튠 | 튠 / 튠 | 튠(§7) | 튠(§7) | 튠(§7) | 튠(§7) | | 몸통 판과 어깨 판의 경계 `[N2]`. `lo`(겨드랑이) 변은 delt 링과 공유 §3e `[N15]`. 모든 여유 튠 중(§7) |
+| `L elbow` | LeftForeArm | LeftArm | +side | up | depth | joint | | | 튠(§7, 초기 0.05) | | | | | |
+| `L wrist` | LeftHand | LeftHand | +side | up | depth | joint | | | | | | | | 단면은 손이 덮어씀 §4a |
+| `R arm` | RightArm | RightShoulder | −side | up | depth | joint | 튠 / 튠 | 튠 / 튠 | 튠(§7) | 튠(§7) | 튠(§7) | 튠(§7) | | `[N2]`. 모든 여유 튠 중(§7) |
+| `R elbow` | RightForeArm | RightArm | −side | up | depth | joint | | | 튠(§7, 초기 0.05) | | | | | L elbow와 공통 |
+| `R wrist` | RightHand | RightHand | −side | up | depth | joint | | | | | | | | §4a |
+| `spine` | Spine | Hips | +up | side | depth | joint | 0 | 0 | | | | | 고관절 (1−w) · 어깨 w, w 튠(§7, 초기 0.5) `[N21]` | 몸통 판의 아랫변, 허리. 아래는 골반 기둥 §3c `[N13]`. pelvis를 줄이면 링이 고관절 기둥 아래로 내려가는데, 그것은 §6b `spine above hips`가 링째 멈춰 막는다 `[N16]`. `front`·`back`은 튠 중(§7) |
+| `spine1` | Spine1 | Hips | +up | side | depth | joint | 0 | 0 | | | | | 고관절 (1−w) · 어깨 w, w 튠(§7, 초기 0.5) `[N21]` | 배. 몸통 판의 가로대 하나 `[N10]`. `front`·`back` 튠 중(§7) |
+| `spine2` | Spine2 | Hips | +up | side | depth | joint | 0 | 0 | | | | | 고관절 (1−w) · 어깨 w, w 튠(§7, 초기 0.5) `[N21]` | 아랫가슴. 〃 |
+| `L knee` | LeftLeg | LeftUpLeg | −up | side | depth | joint | | 튠(§7, 초기 0.1) | 튠(§7) | | | | | 자기 다리 살만 잰다 `[N13]`. `hi` = 바깥쪽 변 |
+| `L ankle` | LeftFoot | LeftLeg | −up↷45° | side | depth↷45° | joint | 튠(§7) | 튠(§7) | | | | | | 발목. Foot 관절을 지나 뒤로 기울어진 링 — 뒤꿈치에서 발등–정강이 연결부로. 기울기·`front`(발등 쪽)·`back`(뒤꿈치 쪽) 튠 중(§7) `[N14]` |
+| `L toe` | LeftToeBase | LeftFoot | +depth | side | up | joint | | (바닥) | | | | | | 발볼. 발 방향에 직교하는 세로 링, front = 발등, back = 발바닥. **뒤(바닥)의 d 앵커는 Foot**, 여유 = ankle 링 바닥 높이까지 — 발바닥이 뒤꿈치와 수평 `[N14]` |
+| `R knee` | RightLeg | RightUpLeg | −up | side | depth | joint | | 튠(§7, 초기 0.1) | | 튠(§7) | | | | `s = side`라 `lo`가 바깥쪽 변; 여유는 L knee와 공통 |
+| `R ankle` | RightFoot | RightLeg | −up↷45° | side | depth↷45° | joint | 튠(§7) | 튠(§7) | | | | | | `[N14]` |
+| `R toe` | RightToeBase | RightFoot | +depth | side | up | joint | | (바닥) | | | | | | `[N14]` |
 
 ankle의 `↷`는 `n`의 기준이 `−up`이라 `n = −cos·up + sin·depth`, `d = cos·depth + sin·up` — knee 프레임을 `side` 축으로 돌려 toe 프레임 쪽으로 가는 도중이다. 발끝은 링이 아니라 기둥 §3d. **평평한 발바닥**: `floor = Foot·up − (ankle 링 rest lo_back 코너)·up`. toe 링은 `d_lo_anchor = Foot`, `hi_back = lo_back = floor`; tip 기둥의 아랫끝도 같다(§3d). 위쪽은 살에서 잰다.
 
@@ -262,7 +262,7 @@ ankle의 `↷`는 `n`의 기준이 `−up`이라 `n = −cos·up + sin·depth`, 
 
 **링** (`ring_corners`): 변별로 자기 앵커만 본다. 링과 기둥 모두 관절 중심만 읽으므로 서로를 기다리지 않는다 — 배열 순서는 토폴로지 표가 쓰는 정점 순서일 뿐이다 `[N16]`.
 `plane_hi = n·(max(hi앵커·n) + along_hi)`, `plane_lo` 도 같다,
-`edge_hi = s·(max(hi앵커·s) + s_hi)`, `edge_lo = s·(min(lo앵커·s) − s_lo)`,
+`edge_hi = s·(max(hi앵커·s) + s_hi · width)`, `edge_lo = s·(min(lo앵커·s) − s_lo · width)` — **driver** `width = Σ_k weight_k · |jc[a_k] − jc[b_k]| / rest_k`(§3 `width` 열의 관절 쌍; 비었으면 1, rest에서는 언제나 1) `[N21]`,
 깊이는 d 앵커의 구간에 코너별 여유: `front = d·(max(d_hi앵커·d) + c_front)`, `back = d·(min(d_lo앵커·d) − c_back)` (c = hi, lo 변; d 앵커는 보통 양 변 앵커 전체).
 코너 = plane + edge + 깊이. 좌우 변이 독립이라 공용 링은 기울 수 있고, 두 변이 `d`에 평행이라 네 점은 항상 한 평면 `[N1]`.
 
@@ -296,7 +296,7 @@ rest에서는 머리가 이미 어깨 위에 있고, arm 링 hi 변도 머리 �
 | `rebuild cage` | 재bake + 케이지 갱신 + 재bind. 이 문서의 상수를 바꾸면 누른다. |
 | `export sweep data` | 스윕(§7b)이 읽을 rest 쪽을 `tools/cage_sweep/data/`에 기록: 구운 상수(JSON), rest 메시(rig 공간)와 정점별 지배 관절, 슬라이더가 편집하는 본 목록. 재bake 뒤에 다시 누른다. |
 | 체형 슬라이더 (`cage_shape`) | 뼈 무리를 한꺼번에 스케일해 비례를 만드는 시험용 손잡이 다섯. **torso**(9: 척추·목·머리 + 어깨밑동) · **arms**(36: 쇄골 이하 양팔 + 손가락) · **legs**(8: 고관절 이하 양다리) · **left**(22) · **right**(22), 각각 rest 대비 비 `[0.5, 1.5]`. 앞 셋이 53개를 **분할**하고 뒤 둘이 사지를 다시 좌우로 가른다 — 어깨밑동은 좌우에서 빠지므로 몸통은 어떤 비대칭에서도 통째로 남는다. 뼈 하나가 받는 값은 **덮는 슬라이더의 곱**이다(왼팔 = arms × left). 무리는 나열하지 않고 스켈레톤에서 읽는다: 팔 = 쇄골 서브트리, 다리 = 고관절 서브트리, 몸통 = 나머지. 슬라이더를 옮기면 **지난번 값과의 비만** 곱하므로 그 아래의 개별 본 편집이 살아남고, 두 절을 어느 순서로 써도 된다. `reset bone lengths`가 다섯을 1로 되돌린다. |
-| 튠 슬라이더 (`cage_tune`) | 아직 확정 안 된 §3 값을 인스펙터에서 찾는 임시 편집기. 현재: arm 링 `hi`(기본 0.05) · `lo`(0, 범위 −0.1..0.1), arm 링 `outward hi` · `outward lo`(0.05, 범위 −0.15..0.1; 음수로 hi는 승모근 위까지, lo는 겨드랑이 속까지 들인다), arm 링 hi/lo 변별 `front`·`back`(0, 범위 −0.1..0.1), crown·spine·spine1·spine2 링 `front`·`back`(0, 범위 −0.05..0.1), head 링 `tilt`(25°, 0..45) · `offset`(0.023, −0.02..0.06) · `front`·`back`(0, −0.05..0.1), `head gate slack`(§6b 머리 보정의 여유, 0.038, 0..0.1) · `arm gate slack`(§6b 어깨 보정의 여유: arm hi 변이 머리 폭 안쪽으로 들어와도 봐주는 거리, 0, −0.05..0.05; 음수는 간격 요구) · `spine gate slack`(§6b 허리 보정의 여유: spine 링 바닥이 고관절 기둥 아래로 내려가도 봐주는 거리, −0.005, −0.035..0.01; 이 보정도 음수여야 한다) · `knee gate slack`(§6b 무릎 보정의 여유: 무릎 링 안쪽 변이 가랑이 너머로 들어와도 봐주는 거리, −0.01, −0.035..0.01; 음수는 간격 요구이고 이 보정은 음수여야 한다), `neck front`·`sternum front`(두 정중선 기둥의 앞끝만 띠 너머로, 0, −0.05..0.1), 골반 `crotch drop`(0.15, 0..0.3) · `hip out`(비율 1, 0..2) · `pelvis front`·`back`(0, −0.05..0.1), knee 링 `out`(양 링의 바깥쪽 변 s 여유, 0, −0.1..0.1) · `back`(0.1, −0.05..0.2), ankle 링 `tilt`(45°, 0..80) · `front`(0, −0.1..0.1) · `back`(0, −0.05..0.1; 발바닥 높이도 정한다), 어깨 기둥 `delt along`(비율 0.4, 0.1..0.9) · `delt up`(0, −0.05..0.1), elbow 링 `hi`(양 링 윗변, 0.05, −0.05..0.1), 손 `wrist thumb`·`wrist pinky`(손목 링 폭 여유, 0, −0.05..0.05) · `thumb out`·`pinky out`(8각형 바깥 기둥 여유, 0, −0.05..0.05; 양손 공통, 음수 = 살 쪽으로), `finger out`(모든 손가락 링 양변의 perp 여유 일괄, 0, −0.005..0.01; §4c) · `valley reach`(계곡 제어점을 손목 반대 방향으로 미는 거리, 0.01, 0..0.03; §2·§4b). 드래그 중엔 재bake + 케이지 갱신만(와이어가 바로 따라옴), 놓으면 재bind + deform. 값이 정해지면 표와 recipe로 옮기고 슬라이더는 지운다. |
+| 튠 슬라이더 (`cage_tune`) | 아직 확정 안 된 §3 값을 인스펙터에서 찾는 임시 편집기. 현재: arm 링 `hi`(기본 0.05) · `lo`(0, 범위 −0.1..0.1), arm 링 `outward hi` · `outward lo`(0.05, 범위 −0.15..0.1; 음수로 hi는 승모근 위까지, lo는 겨드랑이 속까지 들인다), arm 링 hi/lo 변별 `front`·`back`(0, 범위 −0.1..0.1), crown·spine·spine1·spine2 링 `front`·`back`(0, 범위 −0.05..0.1), spine·spine1·spine2 `width blend`(폭이 어깨 너비를 따르는 비중: 0 = 고관절만, 1 = 어깨만, 0.5, 0..1; `[N21]`), head 링 `tilt`(25°, 0..45) · `offset`(0.023, −0.02..0.06) · `front`·`back`(0, −0.05..0.1), `head gate slack`(§6b 머리 보정의 여유, 0.038, 0..0.1) · `arm gate slack`(§6b 어깨 보정의 여유: arm hi 변이 머리 폭 안쪽으로 들어와도 봐주는 거리, 0, −0.05..0.05; 음수는 간격 요구) · `spine gate slack`(§6b 허리 보정의 여유: spine 링 바닥이 고관절 기둥 아래로 내려가도 봐주는 거리, −0.005, −0.035..0.01; 이 보정도 음수여야 한다) · `knee gate slack`(§6b 무릎 보정의 여유: 무릎 링 안쪽 변이 가랑이 너머로 들어와도 봐주는 거리, −0.01, −0.035..0.01; 음수는 간격 요구이고 이 보정은 음수여야 한다), `neck front`·`sternum front`(두 정중선 기둥의 앞끝만 띠 너머로, 0, −0.05..0.1), 골반 `crotch drop`(0.15, 0..0.3) · `hip out`(비율 1, 0..2) · `pelvis front`·`back`(0, −0.05..0.1), knee 링 `out`(양 링의 바깥쪽 변 s 여유, 0, −0.1..0.1) · `back`(0.1, −0.05..0.2), ankle 링 `tilt`(45°, 0..80) · `front`(0, −0.1..0.1) · `back`(0, −0.05..0.1; 발바닥 높이도 정한다), 어깨 기둥 `delt along`(비율 0.4, 0.1..0.9) · `delt up`(0, −0.05..0.1), elbow 링 `hi`(양 링 윗변, 0.05, −0.05..0.1), 손 `wrist thumb`·`wrist pinky`(손목 링 폭 여유, 0, −0.05..0.05) · `thumb out`·`pinky out`(8각형 바깥 기둥 여유, 0, −0.05..0.05; 양손 공통, 음수 = 살 쪽으로), `finger out`(모든 손가락 링 양변의 perp 여유 일괄, 0, −0.005..0.01; §4c) · `valley reach`(계곡 제어점을 손목 반대 방향으로 미는 거리, 0.01, 0..0.03; §2·§4b). 드래그 중엔 재bake + 케이지 갱신만(와이어가 바로 따라옴), 놓으면 재bind + deform. 값이 정해지면 표와 recipe로 옮기고 슬라이더는 지운다. |
 | import 시 | `bake` → `bind` → 케이지 자식 생성 → `update_cage`. FBX는 Read/Write 활성 필요. |
 
 ### 7b. 길이 스윕 — `tools/cage_sweep`
@@ -361,6 +361,11 @@ dotnet run -c Release --project tools/cage_sweep -- --probe 1.2    # 전달비�
         - **발목은 별도 보정이 필요 없다.** 발목 링 안쪽 변은 고관절 0.5에서도 정중선을 넘지 않고(−1.0 cm), 뚫리던 것은 정강이 판의 무릎 쪽 끝이다. 측정: 발목 링을 함께 옮긴 경우와 무릎 링만 옮긴 경우가 음수 여유 전 구간에서 결과가 같다.
         - **이것은 케이지를 지킬 뿐이다.** 같은 편집에서 **살이 먼저 겹친다** — rest에서 좌우 안쪽 허벅지가 정중선에서 각 1.52 cm이므로 고관절 ×0.85부터 메시 자체가 서로를 통과하고, ×0.5에서 7.0 cm 겹친다. 그 범위를 지원할 것인가는 §9 길이 범위 확정이 받는다.
     - **넷째 보정: 허리는 고관절 위에 있다.** `[N16]`이 걸림에서 옮겨 온 것이다. 앞의 셋과 달리 이것은 원래 평가 안에 있던 규칙이라, 보정으로 오면서 **재는 단위가 변에서 링으로 커졌다** — 그것이 정확히 고치는 것이다. 여유가 음수여야 하는 이유는 셋째 보정과 같다: 바닥과 같은 높이에 세우면 그 사이 판이 납작해진다.
+- **[N21] 첫 driver — 몸통 폭은 고관절과 어깨를 따른다.** 몸통 링(`spine`·`spine1`·`spine2`)의 `s` 여유에 `lerp(고관절너비 / rest, 어깨너비 / rest, w)`를 곱한다. 고관절너비 = `|LeftUpLeg − RightUpLeg|`, 어깨너비 = `|LeftArm − RightArm|`, `w`는 링마다 튠(초기 0.5). 의도 둘: 아래 링은 고관절을, 위 링은 어깨를 더 따른다(`w`); 척추 마디가 길어져 링이 오르내려도 **자기 폭을 가지고 간다** — 폭이 높이가 아니라 관절 쌍 거리의 함수라 저절로 성립한다(측정: lumbar ×1.5에서 세 링 폭 ×1.000).
+    - **왜 비율형인가.** 처음 안은 절대형 `lerp(고관절너비, 어깨너비, w) + offset`이었다. 그러면 rest 폭이 잰 값이 아니라 두 너비의 blend가 되어 **rest 케이지가 바뀌고**, 살을 다시 담으려면 offset을 링마다·메시마다 튠해야 한다 — §9의 첫 불변식(rest는 항등)을 깨고, 그래서 "링 정의 변경"으로 느껴진다. 비율형은 rest에서 두 비가 1이라 rest 케이지가 그대로고 offset이 필요 없으며, 다른 메시에도 재튠 없이 붙는다. 절대형이 더 잘하는 것은 몸통 폭을 메시에서 완전히 떼어내는 것 하나뿐이고 그 대가가 크다.
+    - **일반 형태.** `width = {(관절 a, 관절 b, 가중치)…}`, Σ가중치 = 1, 비 = Σ 가중치 · |jc[a] − jc[b]| / rest 거리. 뼈 길이도 관절 쌍(자식, 부모)이므로 다음 룰("팔꿈치 링 ← 상완 길이")이 같은 열에 들어간다. `ring_corners`에서 `s_hi`·`s_lo`에 곱해지므로 **gate보다 앞**이다(§9).
+    - **`s`만 건드린다.** 깊이는 잰 값 그대로다. 정중선 기둥은 `side`로 움직이지 않으므로 §9의 나비 단면은 여기서 생기지 않는다 — 깊이를 구동하는 룰이 오면 그때 기둥이 함께 들어가야 한다.
+    - **측정** (2026-09-07, `--probe`와 형식 검산): rest에서 세 링 ×1.000이고 probe 표가 driver 전과 같다 — rest 항등. 양 고관절 ×1.2 → 세 링 **×1.100**, 양 쇄골 ×1.2 → ×1.100, 둘 다 → **×1.200**; 무릎 링은 구동하지 않으므로 ×1.000. rest 고관절너비 20.10 cm, 어깨너비 32.94 cm.
 - **[N9] cardinal 스냅과 발가락 부호.** rig root 로컬은 월드 정렬이 아니므로 스켈레톤에서 축을 유도하되 cardinal로 스냅해 링을 축 정렬로 유지한다. 외적은 깊이 축만 정하고 앞뒤는 못 정하므로 발가락 방향으로 부호를 정한다.
 
 ## 9. 미결
@@ -388,7 +393,8 @@ dotnet run -c Release --project tools/cage_sweep -- --probe 1.2    # 전달비�
     **D1·D2의 그룹 배분은 쌍 케이스에서 갈라 본 것이고, 전신 3층 숫자는 아직 그 기준으로 다시 세지 않았다** — 네 보정이 모두 든 케이지로 스윕을 다시 돌려야 확정된다(§7b `export sweep data`부터).
 
     **쇄골이 방아쇠인 넷**(A·B·C에 걸쳐 있다)은 하나의 뿌리를 공유한다 — `[N11]`의 `arm outward hi = −0.05`가 **절대 거리**라, 쇄골이 짧아지면 그 5 cm가 `neck mid`를 넘는다. 비율이어야 할 값이 절대값인 것이고 §9 두께 driver와 같은 종류다(씬은 지금 0으로 물렸다). §6b `L/R arm beside head`가 이것을 닫는다(2026-09-06). 2026-09-07 스윕으로 확인: 1·2층 쇄골이 든 행 188개 전부 충돌 0, 전신 3층에서 A·B·C 그룹 0. lo 변(겨드랑이)의 `outward lo`도 같은 절대값이지만 B 무리가 함께 0이 되어 따로 볼 것이 없어졌다.
-- **두께 driver — "키가 크면 두꺼워진다". 이제 이것이 다음 작업이다.** 현재 단면은 rest 살 측정값 + 절대 여유이고 앵커 spread만 길이를 따른다. 단일 사지 링(팔꿈치·손목)은 spread가 0이라 전신을 1.2배 늘여도 팔 굵기가 그대로다. 링마다 단면을 구동하는 뼈(또는 전신 척도)를 선언하는 열이 필요하다: `단면 = rest 단면 × f(driver 길이 / rest)`. §4c endbone이 이 형태의 선례.
+- **두께 driver — "키가 크면 두꺼워진다". 룰을 하나씩 세우는 중.**
+    - **룰 1 — 몸통 폭은 고관절·어깨 너비를 따른다** `[N21]` (`spine`·`spine1`·`spine2`, §3 `width` 열). 비율형, `ring_corners`에서 평가, gate 앞. 다음 룰은 같은 열을 쓴다. 현재 단면은 rest 살 측정값 + 절대 여유이고 앵커 spread만 길이를 따른다. 단일 사지 링(팔꿈치·손목)은 spread가 0이라 전신을 1.2배 늘여도 팔 굵기가 그대로다. 링마다 단면을 구동하는 뼈(또는 전신 척도)를 선언하는 열이 필요하다: `단면 = rest 단면 × f(driver 길이 / rest)`. §4c endbone이 이 형태의 선례.
     - **선언은 손실 없이 도착한다 — 다만 구간 단위로.** `--probe`(§7b)로 잰 것(2026-09-07):
         - **구간의 제어점이 전부 함께 움직이면 전달비 0.92 ~ 1.03**(폭·깊이 모두). 팔꿈치 1.00 / 1.00, 무릎 1.03 / 0.99, spine 0.95 / 0.99, spine1 0.99 / 1.01. **MVC는 병목이 아니다** — 좌표계 교체는 이 줄기에서 필요 없다([cage-deformation-plan.md](cage-deformation-plan.md)).
         - **k에 대해 선형이다.** 0.8 · 1.2 · 1.5에서 같은 전달비가 나오므로 driver는 보정표 없이 비율을 그대로 선언하면 된다.
