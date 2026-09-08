@@ -570,9 +570,6 @@ public class mapping_tester : MonoBehaviour{
                 var spine1_back = EditorGUILayout.Slider("spine1 ring back reach", mapping.tune.spine1_back, -0.05f, 0.1f);
                 var spine2_front = EditorGUILayout.Slider("spine2 ring front reach", mapping.tune.spine2_front, -0.05f, 0.1f);
                 var spine2_back = EditorGUILayout.Slider("spine2 ring back reach", mapping.tune.spine2_back, -0.05f, 0.1f);
-                var spine_blend = EditorGUILayout.Slider("spine width blend (hips 0 .. shoulders 1)", mapping.tune.spine_blend, 0f, 1f);
-                var spine1_blend = EditorGUILayout.Slider("spine1 width blend", mapping.tune.spine1_blend, 0f, 1f);
-                var spine2_blend = EditorGUILayout.Slider("spine2 width blend", mapping.tune.spine2_blend, 0f, 1f);
                 var crotch_drop = EditorGUILayout.Slider("crotch drop", mapping.tune.crotch_drop, 0f, 0.3f);
                 var hip_out = EditorGUILayout.Slider("hip out (ratio)", mapping.tune.hip_out, 0f, 2f);
                 var pelvis_front = EditorGUILayout.Slider("pelvis front reach", mapping.tune.pelvis_front, -0.05f, 0.1f);
@@ -619,9 +616,6 @@ public class mapping_tester : MonoBehaviour{
                     mapping.tune.spine1_back = spine1_back;
                     mapping.tune.spine2_front = spine2_front;
                     mapping.tune.spine2_back = spine2_back;
-                    mapping.tune.spine_blend = spine_blend;
-                    mapping.tune.spine1_blend = spine1_blend;
-                    mapping.tune.spine2_blend = spine2_blend;
                     mapping.tune.crotch_drop = crotch_drop;
                     mapping.tune.hip_out = hip_out;
                     mapping.tune.pelvis_front = pelvis_front;
