@@ -26,6 +26,7 @@
 | 케이지 공간 | rig root(`Hips`) 로컬. 케이지 GameObject는 root의 identity 자식(씬 ×100 스케일 상속). | `mapping_tester.ensure_cage_view` |
 | 축 `up` `side` `depth` | rest 스켈레톤에서 유도 후 **cardinal 축으로 스냅**: `up = cardinal(Head − Hips)`, `side = cardinal(LeftArm − RightArm)`(캐릭터 왼쪽이 +), `depth = (up × side) · sign(dot(LeftToeBase − LeftFoot, up × side))`(**+depth = 앞**). `[N9]` | `bake` 서두 |
 | 살(flesh) | rest 메시의 각 정점을 **지배 본**(최대 가중치)에 배정한 점집합. 케이지 공간. | `gather_flesh` |
+| 키(stature) | `up·Head − min(up·LeftToeBase, up·RightToeBase)` — Head 관절에서 낮은 쪽 발볼까지의 높이. girth 열에 `키`로 적으면 그 비(현재 / rest)가 실루엣을 곱한다 `[N23]`. | `bake`의 `stature` |
 | 서브트리 | 관절 `a`와 그 모든 자손. "`a`의 살" = 서브트리 관절들의 살. | `subtree` |
 | 측정 창 | **cap**: 감쌀 살 전체(평면은 살 끝까지 밀림). **joint**: 링 평면에서 `slab · max(앵커 뼈 rest 길이)` 이내의 살만. **split**: 평면(앵커 + `outward`) 너머(`n` 쪽)의 살 전체 — 그 위의 판이 감싸야 할 것. | `measure`, `fit` |
 | inflate | 잰 구간 `[lo, hi]`를 중앙 기준 `(1 + margin)`배로 부풀림. 모든 측정 구간에 적용. | `inflate` |
@@ -49,12 +50,12 @@
 
 ## 3. 몸통 링 — `recipes[...]`
 
-열: **앵커** = 링을 놓는 관절(변별로 분리됨, §6). **감쌀 살** = 서브트리 루트. **종류** cap/joint/split = 측정 창(§1). **hi/lo**가 `A → B 사이`면 그 변은 잰 여유 대신 두 제어점 `A`·`B`를 잇는 선분 위에 놓인다(§6 걸친 변, `[N21]`). `↷θ` = `side` 축으로 θ만큼 앞으로 기울인 축(`n = cos·up + sin·depth`, `d = cos·depth − sin·up`). 여유는 씬 단위, 빈칸 = 0. `front`/`back`은 hi/lo 변별 — 한 값이면 양 변 공통, `a / b`면 hi 변 / lo 변. **girth** = 실루엣(`s_hi`·`s_lo`·`along_hi`·`along_lo`)을 곱하는 뼈, 그 끝 관절의 이름 — 사지의 링은 전부 그 사지의 뿌리 뼈(쇄골 / 고관절)를 적는다 `[N22]`; 빈칸 = 곱하지 않음(§6).
+열: **앵커** = 링을 놓는 관절(변별로 분리됨, §6). **감쌀 살** = 서브트리 루트. **종류** cap/joint/split = 측정 창(§1). **hi/lo**가 `A → B 사이`면 그 변은 잰 여유 대신 두 제어점 `A`·`B`를 잇는 선분 위에 놓인다(§6 걸친 변, `[N21]`). `↷θ` = `side` 축으로 θ만큼 앞으로 기울인 축(`n = cos·up + sin·depth`, `d = cos·depth − sin·up`). 여유는 씬 단위, 빈칸 = 0. `front`/`back`은 hi/lo 변별 — 한 값이면 양 변 공통, `a / b`면 hi 변 / lo 변. **girth** = 실루엣(`s_hi`·`s_lo`·`along_hi`·`along_lo`)을 곱하는 span(§6): 뼈면 그 끝 관절의 이름 — 사지의 링은 전부 그 사지의 뿌리 뼈(쇄골 / 고관절)를 적는다 `[N22]` — 머리 링 둘은 `키`(§1) `[N23]`; 빈칸 = 곱하지 않음.
 
 | 이름 | 앵커 | 감쌀 살 | n | s | d | 종류 | front | back | hi | lo | outward hi | outward lo | girth | 비고 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `crown` | Head | Head | +up | side | depth | cap | 0 | 0 | | | | |  | 정수리 캡. `front`·`back`은 튠 중(§7) — 가슴~배꼽 정중선과 날개뼈가 몸통 판을 뚫음 |
-| `head` | Head | Head | up↷25° | side | depth↷25° | split | 0 | 0 | | | 0.023 | 0.023 |  | 머리–목 분리 평면. 기울기·오프셋은 씬의 head splitter에서 읽음; 기울기·오프셋·`front`·`back` 튠 중(§7) `[N12]` |
+| `crown` | Head | Head | +up | side | depth | cap | 0 | 0 | | | | | 키 | 정수리 캡. 폭·높이가 키를 따른다 `[N23]`. `front`·`back`은 튠 중(§7) — 가슴~배꼽 정중선과 날개뼈가 몸통 판을 뚫음 |
+| `head` | Head | Head | up↷25° | side | depth↷25° | split | 0 | 0 | | | 0.023 | 0.023 | 키 | 머리–목 분리 평면. 폭과 오프셋이 키를 따른다 `[N23]`. 기울기·오프셋은 씬의 head splitter에서 읽음; 기울기·오프셋·`front`·`back` 튠 중(§7) `[N12]` |
 | `L arm` | LeftArm | LeftShoulder | +side | up | depth | joint | 튠 / 튠 | 튠 / 튠 | — | — | — | — | LeftArm | 몸통 판과 어깨 판의 경계 `[N2]`. 실루엣 변은 재지 않는다 — 정면에서 Arm 관절을 지나는 **라글란 이음선**의 양끝: `arm tilt`(위끝이 안쪽으로, 15°) · `arm length`(rest 0.18), 관절이 중점 `[N11]`. 이음선 길이는 **쇄골**(Shoulder→Arm, 이 링의 앵커 뼈)의 현재/rest 길이 비를 따른다 — `girth` = LeftArm(§6). 상완 판은 여기서 elbow 링으로 바로 간다(§5a). 깊이 여유 튠 중(§7) |
 | `L elbow` | LeftForeArm | LeftArm | +side | up | depth | joint | | | 튠(§7, 초기 0.05) | | | | LeftArm | |
 | `L wrist` | LeftHand | LeftHand | +side | up | depth | joint | | | | | | | LeftArm | 단면은 손이 덮어씀 §4a |
@@ -97,6 +98,8 @@ ankle의 `↷`는 `n`의 기준이 `−up`이라 `n = −cos·up + sin·depth`, 
 | `spine mid` | spine | Spine (1) | spine 앞변 중점 | 링 위 정중선 사슬의 끝. 아래로는 골반 반판의 세로 가로대 `spine mid – crotch` |
 
 **bake 규칙**: 링 위의 기둥(`midline`) — 판 내 위치 = rest 앞변 중점, 앵커 관절과의 차를 오프셋으로 굽는다. 링 사이의 기둥(`post`) — 판 내 위치 = 앵커 관절 그 자리(오프셋 0), 띠 = arm 링(d 앵커 LeftArm·RightArm, 여유 = `L arm`의 해당 변 `front`/`back`). `neck mid`와 `sternum mid`의 앞끝만 그 위에 `neck front`·`sternum front`를 더한다 `[N17]`.
+
+정중선 기둥은 자기 링의 `girth`를 그대로 받는다(§6) — `crown mid`·`head mid`는 키, spine 셋은 없음. 기둥의 판 내 오프셋이 곧 링의 `n` 방향 reach라, 링만 곱하면 캡의 정중선이 rest 높이에 남아 지붕이 접힌다 `[N23]`.
 
 ### 3c. 골반 기둥 — `pelvis_post(...)`
 
@@ -251,11 +254,11 @@ ankle의 `↷`는 `n`의 기준이 `−up`이라 `n = −cos·up + sin·depth`, 
 **링** (`ring_corners`): 변별로 자기 앵커만 본다. 링과 기둥 모두 관절 중심만 읽으므로 서로를 기다리지 않는다 — 배열 순서는 토폴로지 표가 쓰는 정점 순서일 뿐이다 `[N16]`.
 `plane_hi = n·(max(hi앵커·n) + along_hi·g)`, `plane_lo` 도 같다,
 `edge_hi = s·(max(hi앵커·s) + s_hi·g)`, `edge_lo = s·(min(lo앵커·s) − s_lo·g)`,
-여기서 `g`는 링의 **girth 뼈**의 현재 길이 / rest 길이 — 실루엣 네 값이 그 뼈를 따라 커지고 줄어든다. girth가 없는 링은 `g = 1`. 사지의 링은 전부 그 사지의 **뿌리 뼈**를 girth로 갖는다 — arm·elbow·wrist는 쇄골(LeftArm·RightArm 관절의 뼈) `[N11]`, knee·ankle·toe는 고관절(LeftUpLeg·RightUpLeg 관절의 뼈) — 그래서 뿌리의 비가 말단 링까지 그대로 내려간다 `[N22]`. 몸통·머리 링은 girth가 없다. FK 방향이 불변이라 `g`는 `|jc[J] − jc[parent]| / rest_len[J]`로 관절 중심에서 바로 나온다.
+여기서 `g`는 링의 **girth span**의 현재 길이 / rest 길이 — 실루엣 네 값이 그것을 따라 커지고 줄어든다. span(`cage_span`) = `(a[], b[], axis, rest)`, 길이 = `max(a·axis) − min(b·axis)`, 관절만 읽는다. **뼈**는 `a = 관절, b = 부모, axis = rest 방향`이라 FK 아래서 정확히 그 뼈의 길이다; **키**는 `a = Head, b = L/R ToeBase, axis = up`(§1). girth가 없는 링은 `g = 1`. 사지의 링은 전부 그 사지의 **뿌리 뼈**를 girth로 갖는다 — arm·elbow·wrist는 쇄골(LeftArm·RightArm 관절의 뼈) `[N11]`, knee·ankle·toe는 고관절(LeftUpLeg·RightUpLeg 관절의 뼈) — 그래서 뿌리의 비가 말단 링까지 그대로 내려간다 `[N22]`. crown·head 링은 키를 갖는다 `[N23]`. 몸통 링은 girth가 없다.
 깊이는 d 앵커의 구간에 코너별 여유: `front = d·(max(d_hi앵커·d) + c_front)`, `back = d·(min(d_lo앵커·d) − c_back)` (c = hi, lo 변; d 앵커는 보통 양 변 앵커 전체).
 코너 = plane + edge + 깊이. 좌우 변이 독립이라 공용 링은 기울 수 있고, 두 변이 `d`에 평행이라 네 점은 항상 한 평면 `[N1]`.
 
-**기둥** (`post_ends`): `at = Σ weight·jc[anchor] + reach·g`를 `d`에 직교 투영, `d` 좌표는 `max(d_hi앵커·d) + d_hi` / `min(d_lo앵커·d) − d_lo` (손: 양쪽 다 손목, 정중선: 링의 앵커). `g`는 링의 것과 같은 girth 비이고 기둥은 `reach`만 곱한다 — `d` 끝은 그대로다. 지금은 `L/R tip`만 고관절을 girth로 갖는다(§3d) `[N22]`.
+**기둥** (`post_ends`): `at = Σ weight·jc[anchor] + reach·g`를 `d`에 직교 투영, `d` 좌표는 `max(d_hi앵커·d) + d_hi` / `min(d_lo앵커·d) − d_lo` (손: 양쪽 다 손목, 정중선: 링의 앵커). `g`는 링의 것과 같은 girth 비이고 기둥은 `reach`만 곱한다 — `d` 끝은 그대로다. `L/R tip`은 고관절을 girth로 갖고(§3d) `[N22]`, 정중선 기둥은 자기 링의 girth를 받는다(§3b) — `crown mid`·`head mid`는 키 `[N23]`. 나머지는 없다.
 
 **걸친 변** (`between`): 링과 기둥이 다 놓인 뒤, §3에서 `A → B 사이`로 선언된 변은 자기 `s` 좌표를 버리고 `t = clamp01((plane·n − A·n) / (B·n − A·n))`, `edge·s = lerp(A·s, B·s, t)`를 받는다 — 링 평면이 두 점 사이 어디를 지나는지로 그 선분 위의 점을 고른다. 평면(`n`)과 깊이(`d`)는 그대로다. **평가 중 제어점이 다른 제어점을 읽는 유일한 자리**이고 한 방향이다: 읽히는 점(고관절 기둥, arm 링)은 관절만 읽는다. 지금은 spine·spine1·spine2의 양 변이 각각 `L/R hip`(기둥 앞끝)과 `L/R arm`의 lo 변 앞 코너(겨드랑이) 사이에 걸친다 `[N21]`.
 
@@ -360,6 +363,7 @@ dotnet run -c Release --project tools/cage_sweep -- --probe 1.2    # 전달비�
     - **걸친 변은 제어점을 읽는다 — 관절로 풀지 않은 이유.** 고관절 기둥의 side는 `(1+f)·UpLeg.side`, 겨드랑이는 `Arm.side + (arm length / 2)·sin(arm tilt)`로 관절과 상수로 다시 쓸 수 있지만, 그러면 같은 식이 두 곳에 생겨 `hip out`이나 이음선 튠이 바뀔 때 몸통 규칙이 소리 없이 어긋난다. 규칙의 본질이 "케이지 자기 기하에 대한 문장"이므로 놓인 점을 읽는다. 읽히는 점은 관절만 읽으므로 순환이 없다(§6).
     - **지나온 길.** 같은 날 먼저 들어간 것은 비율형 driver였다 — 잰 폭에 `lerp(고관절너비/rest, 어깨너비/rest, w)`를 곱하고 `w`를 링마다 튠(§3 `width` 열, 검산 rest ×1.000 · 양 고관절 ×1.2 → ×1.100 · 둘 다 → ×1.200 · lumbar ×1.5 → 폭 불변). rest를 지키고 허리를 남기는 대신 튠 셋과 관절 쌍·가중치·rest 거리의 열이 필요했다. 사다리꼴은 그 전부를 없애므로 바꿨고, `width` 열은 사용자가 없어 같이 걷어냈다 — 사지 룰(팔꿈치 ← 상완 길이)이 그 형태를 다시 필요로 하면 이력에서 되살린다.
 - **[N22] 사지 링은 뿌리의 비를 그대로 받는다 — 룰 3.** 사지 하나의 굵기는 그 뿌리 뼈 하나가 정한다: 팔은 쇄골(어깨 폭), 다리는 고관절 뼈(골반 반폭). 뿌리 링·기둥은 이미 그 뼈를 따르므로(arm 링의 이음선 `[N11]`, `L/R hip`의 `(1+f)` `[N13]`), 그 아래 링에 **같은 비를 그대로** 넘기면 사지가 한 배율로 굵어지고 판이 링 사이에서 꺾이지 않는다 — 원본 비율에 대한 확장비를 그대로 전달하는 것으로 충분하다고 보았고, 링마다 다른 곡선을 둘 근거가 아직 없다. 열은 `girth` 하나라 새 튠이 없고 rest에서 비가 1이라 driver 불변식(§9)이 그대로 성립한다. **다리는 폭**(knee·ankle·toe의 `s = side`, tip 기둥의 `reach = side·폭)이 hip → knee → ankle → toe → tip으로 내려가고, **팔은 높이**(arm·elbow·wrist의 `s = up`)가 arm → elbow → wrist까지 내려간다. 깊이(`front`·`back`)는 어느 쪽도 곱하지 않는다 — 깊이 복원 패스의 몫(§9). 손목 링의 실루엣은 손이 덮어쓴 값(§4a)이지만 그것도 곱하므로 손목은 팔과 함께 굵어지고, **손등 이후(손 기둥)는 따르지 않는다** — 손은 따로 본다. tip 기둥은 `reach`만 곱한다: 위끝(`d_hi`)은 높이라 발가락 폭과 무관하고, 아래끝은 평평한 발바닥 `[N14]`이다.
+- **[N23] 머리는 키를 따른다 — 룰 4.** 머리 크기는 키에 비례한다고 놓는다. 키 = Head 관절에서 발볼까지의 `up` 거리(§1)이고, 두 발 중 **낮은 쪽**을 쓴다 — 서 있는 키가 그것이고, 한쪽 다리만 편집해도 좌우가 대칭으로 응답한다. rest 대비 비를 그대로 곱한다(선형). 소아 비례처럼 비선형이 맞겠지만 지금은 단순하게 두고, 곡선이 필요해지면 `stature`의 비에 f를 씌운다. 곱하는 자리는 기존 `girth` 열 그대로다: `head` 링의 폭(`s`)과 오프셋(`along`, 2.3 cm), `crown` 링의 폭과 높이(`along` = 관절 위 두개골 높이). 요청은 head 폭·crown 높이 둘이었지만 crown 폭을 빼면 머리가 위로 갈수록 좁아지는 사다리꼴이 되므로 함께 두었고, head 오프셋은 작아서 분리하지 않았다 — 축별로 갈라야 하면 그때 열을 나눈다. 깊이는 곱하지 않는다. **구간 단위**: `crown mid`·`head mid` 기둥이 같은 비를 받는다(§3b) — 기둥의 오프셋은 링의 `n` reach 그 자체(crown: 두개골 높이, head: 오프셋)라 링만 곱하면 정중선이 rest에 남아 캡이 접힌다. 이것을 위해 girth를 뼈에서 **span**(관절 쌍 + 축 + rest, §6)으로 일반화했다 — 키는 뼈가 아니기 때문이다; 뼈는 같은 형식으로 정확히 같은 값을 준다. `head above arms`·`L/R arm beside head` 두 gate가 커진 머리를 그대로 받는다 — driver는 gate보다 앞(§9).
 - **[N9] cardinal 스냅과 발가락 부호.** rig root 로컬은 월드 정렬이 아니므로 스켈레톤에서 축을 유도하되 cardinal로 스냅해 링을 축 정렬로 유지한다. 외적은 깊이 축만 정하고 앞뒤는 못 정하므로 발가락 방향으로 부호를 정한다.
 
 ## 9. 미결
@@ -391,6 +395,7 @@ dotnet run -c Release --project tools/cage_sweep -- --probe 1.2    # 전달비�
     - **룰 1 — 몸통 옆판은 겨드랑이에서 고관절로 곧다** `[N21]`. driver의 틀(rest 항등, 잰 단면 × 비)에 들어가지 않는 **레시피**로 들어갔다 — spine 세 링의 변이 고관절 기둥과 겨드랑이 사이에 걸친다(§6 걸친 변). 두께 룰이 반드시 driver 형태일 필요는 없다는 첫 예다. 비율형 driver 열(`width`)은 만들었다가 걷어냈고, 사지 룰이 오면 되살린다. 현재 단면은 rest 살 측정값 + 절대 여유이고 앵커 spread만 길이를 따른다. 단일 사지 링(팔꿈치·손목)은 spread가 0이라 전신을 1.2배 늘여도 팔 굵기가 그대로다. 링마다 단면을 구동하는 뼈(또는 전신 척도)를 선언하는 열이 필요하다: `단면 = rest 단면 × f(driver 길이 / rest)`. §4c endbone이 이 형태의 선례.
     - **룰 2 — arm 링의 이음선은 쇄골을 따른다** (2026-09-09). 그 열이 `girth`(§6)로 들어왔다: 링의 실루엣 네 값(`s_hi`·`s_lo`·`along_hi`·`along_lo`)에 girth 뼈의 현재/rest 비를 곱한다. arm 링은 실루엣이 이음선 하나(`arm tilt`·`arm length`, `[N11]`)라 곱할 것이 길이 하나이고, 그 뼈는 쇄골이다 — 어깨 폭이 넓으면 어깨가 굵다. 걸친 변(§6)이 읽는 겨드랑이 코너가 함께 내려가므로 몸통 옆판의 시작점도 따라온다. **깊이는 아직 따르지 않는다** — 그것은 이 틀의 다음 단계, rest 비율을 되돌리는 깊이 복원 패스의 몫이다(`neck mid`·`sternum mid`가 그때 함께 닥친다). 단일 사지 링에 뿌리의 비를 넘기는 것은 룰 3이 했다.
     - **룰 3 — 사지 링은 뿌리의 비를 그대로 받는다** (2026-09-09, `[N22]`). 같은 `girth` 열: elbow·wrist는 쇄골, knee·ankle·toe와 `L/R tip` 기둥(`reach`)은 고관절 뼈. 다리는 폭이 hip → knee → ankle → toe → tip으로, 팔은 높이가 arm → elbow → wrist로 내려간다. 손등 이후는 따르지 않는다 — 손은 따로 본다. 깊이는 여전히 따르지 않는다. 씬 재bake·스윕은 아직이다.
+    - **룰 4 — 머리는 키를 따른다** (2026-09-09, `[N23]`). `crown`·`head` 링과 그 정중선 기둥 둘의 girth = `키`(§1: Head에서 낮은 발볼까지의 `up` 거리, rest 대비, 선형). 정면 실루엣만 — head 폭·오프셋, crown 폭·높이; 깊이는 아니다. 이를 위해 `girth`가 뼈에서 span으로 일반화됐다(§6). 비선형(소아 비례)은 미결. 씬 재bake·스윕은 아직이다.
     - **선언은 손실 없이 도착한다 — 다만 구간 단위로.** `--probe`(§7b)로 잰 것(2026-09-07):
         - **구간의 제어점이 전부 함께 움직이면 전달비 0.92 ~ 1.03**(폭·깊이 모두). 팔꿈치 1.00 / 1.00, 무릎 1.03 / 0.99, spine 0.95 / 0.99, spine1 0.99 / 1.01. **MVC는 병목이 아니다** — 좌표계 교체는 이 줄기에서 필요 없다([cage-deformation-plan.md](cage-deformation-plan.md)).
         - **k에 대해 선형이다.** 0.8 · 1.2 · 1.5에서 같은 전달비가 나오므로 driver는 보정표 없이 비율을 그대로 선언하면 된다.

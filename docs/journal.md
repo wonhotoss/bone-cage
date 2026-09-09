@@ -976,3 +976,31 @@ arm 링이 이음선 하나가 되어 쇄골을 따르게 된 지금, 삼각근 
 - 눈으로: 고관절 0.5 / 1.5에서 다리가 발끝까지 절반 / 1.5배 폭으로, 쇄골 0.5 / 1.5에서 팔이 손목까지 절반 / 1.5배 높이로 보이는지. 손목에서 손으로 넘어가는 단이 얼마나 눈에 띄는지.
 - 손등 이후.
 - 깊이 복원 패스(`neck mid`·`sternum mid` 소속 포함).
+
+---
+
+## 2026-09-09 (이어서) — 머리는 키를 따른다: girth가 뼈에서 span으로
+
+커밋: (이 항목). 씬은 별도로 — `rebuild cage` 뒤.
+
+### 룰 4
+머리 크기는 키에 비례한다. 지금까지처럼 **정면 실루엣만** — head 링의 폭과 crown의 높이. 키는 Head 관절에서 ToeBase까지의 `up` 거리이고 rest 대비 비를 그대로 곱한다. 소아 비례를 생각하면 비선형이어야 하지만 지금은 단순하게.
+
+### 정한 것
+- **발은 낮은 쪽.** 두 ToeBase 중 `up`으로 더 낮은 것 — 서 있는 키이고, 한쪽 다리만 편집해도 좌우 응답이 대칭이다. 왼발 하나를 쓰면 `right=0.9`에는 머리가 안 변하고 `left=0.9`에는 변한다.
+- **crown 폭도 함께 곱한다.** 요청은 head 폭·crown 높이 둘이었지만 기존 `girth`는 실루엣 네 값을 다 곱하고, crown 폭을 빼면 머리가 위로 갈수록 좁아지는 사다리꼴이 된다. head 링의 오프셋(2.3 cm)도 함께 곱해지는데 작아서 분리하지 않았다. 축별로 갈라야 하면 그때 열을 나눈다. 깊이는 곱하지 않는다.
+- **기둥이 따라간다.** `crown mid`·`head mid`의 판 내 오프셋은 링의 `n` reach 그 자체(두개골 높이, 오프셋)다. 링만 곱하면 정중선이 rest 높이에 남아 캡이 접힌다 — probe에서 본 나비 단면의 세로판. `midline()`이 링의 girth를 기둥에 넘긴다. spine 기둥 셋은 링에 girth가 없어 그대로다.
+
+### girth를 span으로
+키는 뼈가 아니다. `girth`를 "뼈 하나의 길이 비"에서 **span**으로 일반화했다: `cage_span{ a[], b[], axis, rest }`, 길이 = `max(a·axis) − min(b·axis)`, 비 = 길이 / rest. 뼈는 `a = 관절, b = 부모, axis = rest 방향`이라 FK 아래서 정확히 그 뼈의 길이 — 룰 2·3의 값은 하나도 안 바뀐다. 키는 `a = Head, b = {L, R ToeBase}, axis = up`. 앵커의 `Max`/`Min` 규약과 같은 꼴이다. 관절만 읽으므로 `[N16]`은 그대로다.
+
+코드: `cage_span` 타입, `cage_ring.girth`·`cage_post.girth`·`recipe.girth`가 `cage_span[]`, `girth(jc, span)`은 상수 표를 더 이상 안 읽는다(그래서 `rest_corners`의 부분 상수도 `rings`만으로 돌아갔다). bake에 `bone(joint)`와 `stature`를 두고 레시피가 그것을 적는다. `post()`가 girth를 인자로 받고, `midline`이 `r.girth`를 넘긴다. 새 튠은 없다.
+
+### 검증
+`dotnet build` 에러 0, 경고 0. 재bake·포함·스윕은 돌리지 않았다. `girth`의 타입이 바뀌었으므로 씬에 직렬화된 상수와 `constants.json` 모두 `rebuild cage` → `export sweep data`가 필요하다.
+
+### 남긴 일
+- `rebuild cage` → rest 포함 0 → `export sweep data` → 스윕. 특히 `head above arms`·`L/R arm beside head`가 커진 머리에서 맞는지 — 여유 넷은 driver 없는 폭에 튠된 값이다.
+- 눈으로: 전신 1.2에서 머리가 1.2배로 보이는지, 목 판(V–head 링)이 자연스러운지.
+- 비선형 f(키 비) — 소아 비례. 곡선을 어디에 두는지(`stature` 비에 f)만 정해져 있다.
+- 룰 3의 남긴 일 그대로(손등 이후, 깊이 복원 패스).

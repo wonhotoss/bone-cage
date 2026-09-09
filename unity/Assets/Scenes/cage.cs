@@ -50,16 +50,28 @@ public class cage_ring{
     public Vector3 d;           // in-plane axis separating the front and back panels
     public float along_hi, along_lo;    // each edge's offset past its farthest anchor, along n; unequal on a tilted ring
     public float s_lo, s_hi;    // reach beyond the anchors' span, on the -s and +s side
-    public int[] girth;         // the joint whose bone, at its current over its rest length, scales the four
-                                // values above -- the ring's silhouette follows that bone; empty and it keeps
-                                // its rest size. A limb's rings all follow its root bone: the arm, elbow and
-                                // wrist the clavicle, the knee, ankle and toe the hip. `[N22]`
+    public cage_span[] girth;   // the span whose current over rest length scales the four values above --
+                                // the ring's silhouette follows it; empty and it keeps its rest size. A limb's
+                                // rings all follow its root bone: the arm, elbow and wrist the clavicle, the
+                                // knee, ankle and toe the hip `[N22]`; the head rings follow the stature `[N23]`.
     public int[] hi_between, lo_between;    // two placed control points the edge lies between: its s
                                             // coordinate is theirs, taken where the ring's plane falls
                                             // between their n coordinates; empty and the edge keeps its
                                             // own reach. The torso's sides run armpit to hip. `[N21]`
     public float hi_front, lo_front;    // each corner's reach along d past its depth anchors:
     public float hi_back, lo_back;      // front past their max, back past their min
+}
+
+// A length read off the skeleton, as a ratio to its rest value: what a ring's silhouette scales
+// with. The farthest of a along the axis to the nearest of b, so a bone is (joint, parent) along
+// its rest direction -- exactly its length, since FK keeps that direction -- and the stature is
+// the Head joint over the lower of the two toe bases, along up. Never a difference of two
+// control points: girth reads joints only, so no ring waits on another. `[N16]`
+[Serializable]
+public class cage_span{
+    public int[] a, b;          // joints: the span runs from the least of b to the greatest of a, along axis
+    public Vector3 axis;
+    public float rest;          // the same span at rest
 }
 
 // A post is the pair of vertices one control point owns, along one axis d. The hand needs this
@@ -84,8 +96,9 @@ public class cage_post{
     public int[] d_lo_anchor;   // joints placing the -d end: it sits d_lo below the lowest of them along d
     public int[] d_hi_anchor;   // joints placing the +d end: d_hi above the highest
     public float d_lo, d_hi;
-    public int[] girth;         // as a ring's: the bone whose current over rest length scales reach. The toe
-                                // tips follow the hip, so the cap widens with the leg; empty elsewhere. `[N22]`
+    public cage_span[] girth;   // as a ring's: the span whose current over rest length scales reach. The toe
+                                // tips follow the hip, so the cap widens with the leg `[N22]`; a midline post
+                                // follows its ring, so a section scales whole `[N23]`; empty elsewhere.
 }
 
 // A correction applied once every ring and post is placed, because it reads one part of the cage
@@ -271,11 +284,11 @@ public static class cage{
         }
     }
 
-    // How much a silhouette follows its girth bone: that bone's current length over its rest length,
-    // read straight off the joint centers since FK keeps the rest direction. No bone, no change.
-    static float girth(cage_constants k, Vector3[] jc, int[] joint){
-        return joint.Length == 0 ? 1f
-            : joint.Select(j => (jc[j] - jc[k.joint_parent[j]]).magnitude / k.joint_rest_len[j]).Single();
+    // How much a silhouette follows its girth span: its current length over its rest length. No span,
+    // no change.
+    static float girth(Vector3[] jc, cage_span[] span){
+        return span.Length == 0 ? 1f
+            : span.Select(g => (g.a.Max(j => Vector3.Dot(jc[j], g.axis)) - g.b.Min(j => Vector3.Dot(jc[j], g.axis))) / g.rest).Single();
     }
 
     // The ring axes are orthonormal, so summing the three components rebuilds a corner exactly.
@@ -288,7 +301,7 @@ public static class cage{
             var a_hi = r.anchor_hi.Select(j => jc[j]).ToArray();
             var a_lo = r.anchor_lo.Select(j => jc[j]).ToArray();
 
-            var by = girth(k, jc, r.girth);
+            var by = girth(jc, r.girth);
 
             var plane_hi = r.n * (a_hi.Max(p => Vector3.Dot(p, r.n)) + r.along_hi * by);
             var plane_lo = r.n * (a_lo.Max(p => Vector3.Dot(p, r.n)) + r.along_lo * by);
@@ -313,7 +326,7 @@ public static class cage{
         var verts = new Vector3[k.posts.Length * 2];
         for(var i = 0; i < k.posts.Length; i++){
             var p = k.posts[i];
-            var at = p.anchor.Select((j, a) => jc[j] * p.weight[a]).Aggregate((x, y) => x + y) + p.reach * girth(k, jc, p.girth);
+            var at = p.anchor.Select((j, a) => jc[j] * p.weight[a]).Aggregate((x, y) => x + y) + p.reach * girth(jc, p.girth);
             var flat = at - p.d * Vector3.Dot(at, p.d);
 
             verts[i * 2 + post_hi] = flat + p.d * (p.d_hi_anchor.Max(j => Vector3.Dot(jc[j], p.d)) + p.d_hi);
@@ -467,7 +480,7 @@ public static class cage{
         public float outward_lo;    // in when negative. The cross-section is still measured at the
                                     // anchor, so an edge moved along a limb keeps the girth it had
                                     // there. Unequal values tilt the ring.
-        public int[] girth = new int[0];    // the bone the silhouette scales with (cage_ring.girth)
+        public cage_span[] girth = new cage_span[0];    // the span the silhouette scales with (cage_ring.girth)
     }
 
     public static cage_constants bake(SkinnedMeshRenderer source, cage_tune tune){
@@ -497,27 +510,41 @@ public static class cage{
             return names.Select(n => index[n]).ToArray();
         }
 
+        // What a silhouette may scale with: a bone, as its length over rest; or the stature, the Head
+        // joint's height over the lower toe base -- the standing height, and the same whichever leg
+        // was edited. Linear for now; a child's proportions would want a curve here. `[N23]`
+        cage_span[] bone(string joint){
+            var j = index[joint];
+            return new[]{ new cage_span{ a = new[]{ j }, b = new[]{ parent[j] }, axis = dir[j], rest = rest_len[j] } };
+        }
+        var stature = new[]{ new cage_span{
+            a = js("Head"), b = js("LeftToeBase", "RightToeBase"), axis = up,
+            rest = Vector3.Dot(rest[index["Head"]], up) - js("LeftToeBase", "RightToeBase").Min(j => Vector3.Dot(rest[j], up)),
+        } };
+
         // The reach fields pull a panel out over flesh the rings themselves do not see, and belong
         // to whichever ring bounds that panel there. The torso panels split at the midline, so their
         // depth interpolates crown to spine: the chest and back are the crown and spine rings'
         // business, and depth reach on the arm rings would only bulge the side of the torso. Editable.
         var recipes = new recipe[17];
-        recipes[crown] = new recipe{ name = "crown", anchor = js("Head"), wrap = js("Head"), n = up, s = side, d = depth, kind = fit.cap, front = (tune.crown_front, tune.crown_front), back = (tune.crown_back, tune.crown_back) };
+        recipes[crown] = new recipe{ name = "crown", anchor = js("Head"), wrap = js("Head"), n = up, s = side, d = depth, kind = fit.cap, girth = stature, front = (tune.crown_front, tune.crown_front), back = (tune.crown_back, tune.crown_back) };
         // The head ring parts the head from the neck. The chin hangs ahead of and below the skull
         // base, so the parting plane leans forward about the side axis: its frame is up and depth
-        // turned by that tilt, and it sits a little above the Head joint along its own normal.
+        // turned by that tilt, and it sits a little above the Head joint along its own normal. Both
+        // head rings scale with the stature: a taller body has a bigger head, as wide at the jaw
+        // and the skull as it is tall above the joint. `[N23]`
         var tilt = tune.head_tilt * Mathf.Deg2Rad;
-        recipes[head] = new recipe{ name = "head", anchor = js("Head"), wrap = js("Head"), n = Mathf.Cos(tilt) * up + Mathf.Sin(tilt) * depth, s = side, d = Mathf.Cos(tilt) * depth - Mathf.Sin(tilt) * up, kind = fit.split, outward_hi = tune.head_offset, outward_lo = tune.head_offset, front = (tune.head_front, tune.head_front), back = (tune.head_back, tune.head_back) };
+        recipes[head] = new recipe{ name = "head", anchor = js("Head"), wrap = js("Head"), n = Mathf.Cos(tilt) * up + Mathf.Sin(tilt) * depth, s = side, d = Mathf.Cos(tilt) * depth - Mathf.Sin(tilt) * up, kind = fit.split, girth = stature, outward_hi = tune.head_offset, outward_lo = tune.head_offset, front = (tune.head_front, tune.head_front), back = (tune.head_back, tune.head_back) };
         // The arm rings' silhouette edges are not measured: they are set below as a line through the
         // shoulder joint. Only their depth comes from the flesh.
-        recipes[arm_hi] = new recipe{ name = "L arm", anchor = js("LeftArm"), wrap = js("LeftShoulder"), n = side, s = up, d = depth, kind = fit.joint, girth = js("LeftArm"), front = (tune.arm_hi_front, tune.arm_lo_front), back = (tune.arm_hi_back, tune.arm_lo_back) };
-        recipes[elbow_hi] = new recipe{ name = "L elbow", anchor = js("LeftForeArm"), wrap = js("LeftArm"), n = side, s = up, d = depth, kind = fit.joint, girth = js("LeftArm"), hi = tune.elbow_hi };
+        recipes[arm_hi] = new recipe{ name = "L arm", anchor = js("LeftArm"), wrap = js("LeftShoulder"), n = side, s = up, d = depth, kind = fit.joint, girth = bone("LeftArm"), front = (tune.arm_hi_front, tune.arm_lo_front), back = (tune.arm_hi_back, tune.arm_lo_back) };
+        recipes[elbow_hi] = new recipe{ name = "L elbow", anchor = js("LeftForeArm"), wrap = js("LeftArm"), n = side, s = up, d = depth, kind = fit.joint, girth = bone("LeftArm"), hi = tune.elbow_hi };
         // The wrist rings hand the arms over to the hands, which measure them: their extents are
         // overwritten below, since both need flesh windows the generic measure cannot express.
-        recipes[wrist_hi] = new recipe{ name = "L wrist", anchor = js("LeftHand"), wrap = js("LeftHand"), n = side, s = up, d = depth, kind = fit.joint, girth = js("LeftArm") };
-        recipes[arm_lo] = new recipe{ name = "R arm", anchor = js("RightArm"), wrap = js("RightShoulder"), n = -side, s = up, d = depth, kind = fit.joint, girth = js("RightArm"), front = (tune.arm_hi_front, tune.arm_lo_front), back = (tune.arm_hi_back, tune.arm_lo_back) };
-        recipes[elbow_lo] = new recipe{ name = "R elbow", anchor = js("RightForeArm"), wrap = js("RightArm"), n = -side, s = up, d = depth, kind = fit.joint, girth = js("RightArm"), hi = tune.elbow_hi };
-        recipes[wrist_lo] = new recipe{ name = "R wrist", anchor = js("RightHand"), wrap = js("RightHand"), n = -side, s = up, d = depth, kind = fit.joint, girth = js("RightArm") };
+        recipes[wrist_hi] = new recipe{ name = "L wrist", anchor = js("LeftHand"), wrap = js("LeftHand"), n = side, s = up, d = depth, kind = fit.joint, girth = bone("LeftArm") };
+        recipes[arm_lo] = new recipe{ name = "R arm", anchor = js("RightArm"), wrap = js("RightShoulder"), n = -side, s = up, d = depth, kind = fit.joint, girth = bone("RightArm"), front = (tune.arm_hi_front, tune.arm_lo_front), back = (tune.arm_hi_back, tune.arm_lo_back) };
+        recipes[elbow_lo] = new recipe{ name = "R elbow", anchor = js("RightForeArm"), wrap = js("RightArm"), n = -side, s = up, d = depth, kind = fit.joint, girth = bone("RightArm"), hi = tune.elbow_hi };
+        recipes[wrist_lo] = new recipe{ name = "R wrist", anchor = js("RightHand"), wrap = js("RightHand"), n = -side, s = up, d = depth, kind = fit.joint, girth = bone("RightArm") };
         // The spine ring is the torso panel's bottom edge, level across the Spine joint; it wraps
         // whatever crosses that height, so the waist. The pelvis below it is posts, not a ring. The
         // two rings above it, on Spine1 and Spine2, section the belly and the lower chest the same
@@ -529,8 +556,8 @@ public static class cage{
         // however close the legs stand. s is side on both, so the outer edge is hi on the left knee
         // and lo on the right. Their width follows the hip bone, the one the hip post follows: a
         // wider pelvis is a thicker leg, down to the toes. `[N22]`
-        recipes[knee_hi] = new recipe{ name = "L knee", anchor = js("LeftLeg"), wrap = js("LeftUpLeg"), n = -up, s = side, d = depth, kind = fit.joint, girth = js("LeftUpLeg"), hi = tune.knee_out, back = (tune.knee_back, tune.knee_back) };
-        recipes[knee_lo] = new recipe{ name = "R knee", anchor = js("RightLeg"), wrap = js("RightUpLeg"), n = -up, s = side, d = depth, kind = fit.joint, girth = js("RightUpLeg"), lo = tune.knee_out, back = (tune.knee_back, tune.knee_back) };
+        recipes[knee_hi] = new recipe{ name = "L knee", anchor = js("LeftLeg"), wrap = js("LeftUpLeg"), n = -up, s = side, d = depth, kind = fit.joint, girth = bone("LeftUpLeg"), hi = tune.knee_out, back = (tune.knee_back, tune.knee_back) };
+        recipes[knee_lo] = new recipe{ name = "R knee", anchor = js("RightLeg"), wrap = js("RightUpLeg"), n = -up, s = side, d = depth, kind = fit.joint, girth = bone("RightUpLeg"), lo = tune.knee_out, back = (tune.knee_back, tune.knee_back) };
         // The ankle ring leans back through the Foot joint -- heel down and behind, the crease of
         // the instep up and ahead -- so its frame is the knee's turned about the side axis by the
         // tilt, part way toward the toe ring's. That one stands upright across the ball of the
@@ -538,10 +565,10 @@ public static class cage{
         var lean = tune.ankle_tilt * Mathf.Deg2Rad;
         var ankle_n = -Mathf.Cos(lean) * up + Mathf.Sin(lean) * depth;
         var ankle_d = Mathf.Cos(lean) * depth + Mathf.Sin(lean) * up;
-        recipes[ankle_hi] = new recipe{ name = "L ankle", anchor = js("LeftFoot"), wrap = js("LeftLeg"), n = ankle_n, s = side, d = ankle_d, kind = fit.joint, girth = js("LeftUpLeg"), front = (tune.ankle_front, tune.ankle_front), back = (tune.ankle_back, tune.ankle_back) };
-        recipes[toe_hi] = new recipe{ name = "L toe", anchor = js("LeftToeBase"), wrap = js("LeftFoot"), n = depth, s = side, d = up, kind = fit.joint, girth = js("LeftUpLeg") };
-        recipes[ankle_lo] = new recipe{ name = "R ankle", anchor = js("RightFoot"), wrap = js("RightLeg"), n = ankle_n, s = side, d = ankle_d, kind = fit.joint, girth = js("RightUpLeg"), front = (tune.ankle_front, tune.ankle_front), back = (tune.ankle_back, tune.ankle_back) };
-        recipes[toe_lo] = new recipe{ name = "R toe", anchor = js("RightToeBase"), wrap = js("RightFoot"), n = depth, s = side, d = up, kind = fit.joint, girth = js("RightUpLeg") };
+        recipes[ankle_hi] = new recipe{ name = "L ankle", anchor = js("LeftFoot"), wrap = js("LeftLeg"), n = ankle_n, s = side, d = ankle_d, kind = fit.joint, girth = bone("LeftUpLeg"), front = (tune.ankle_front, tune.ankle_front), back = (tune.ankle_back, tune.ankle_back) };
+        recipes[toe_hi] = new recipe{ name = "L toe", anchor = js("LeftToeBase"), wrap = js("LeftFoot"), n = depth, s = side, d = up, kind = fit.joint, girth = bone("LeftUpLeg") };
+        recipes[ankle_lo] = new recipe{ name = "R ankle", anchor = js("RightFoot"), wrap = js("RightLeg"), n = ankle_n, s = side, d = ankle_d, kind = fit.joint, girth = bone("RightUpLeg"), front = (tune.ankle_front, tune.ankle_front), back = (tune.ankle_back, tune.ankle_back) };
+        recipes[toe_lo] = new recipe{ name = "R toe", anchor = js("RightToeBase"), wrap = js("RightFoot"), n = depth, s = side, d = up, kind = fit.joint, girth = bone("RightUpLeg") };
 
         // Widen a measured span by the margin, about its middle.
         static (float lo, float hi) inflate(float lo, float hi){
@@ -634,10 +661,10 @@ public static class cage{
         // Body control points that are posts rather than ring corners, by the (station, side) the
         // topology tables name them with.
         var at = new Dictionary<(int ring, edge e), int>();
-        int post(string name, int[] anchor, float[] weight, Vector3 reach, Vector3 d, int[] d_anchor, float d_lo, float d_hi){
+        int post(string name, int[] anchor, float[] weight, Vector3 reach, Vector3 d, int[] d_anchor, float d_lo, float d_hi, cage_span[] girth){
             posts.Add(new cage_post{
                 name = name, anchor = anchor, weight = weight, reach = reach,
-                d = d, d_lo_anchor = d_anchor, d_hi_anchor = d_anchor, d_lo = d_lo, d_hi = d_hi, girth = new int[0],
+                d = d, d_lo_anchor = d_anchor, d_hi_anchor = d_anchor, d_lo = d_lo, d_hi = d_hi, girth = girth,
             });
             return posts.Count - 1;
         }
@@ -646,15 +673,17 @@ public static class cage{
         // torso and head come as two halves. A post's ends take the depth anchors and reach of the
         // ring whose band it closes, so it stays level with that ring's edges however they move.
         // On a ring across the body: exactly at the midpoint of its edges, anchored on the joint
-        // that places them and offset by whatever the rest midpoint is off that joint.
-        var rest_corners = ring_corners(new cage_constants{ rings = rings, joint_parent = parent, joint_rest_len = rest_len }, rest);
+        // that places them and offset by whatever the rest midpoint is off that joint. It scales
+        // with the ring's girth, since that offset is the ring's own reach along n: scale the ring
+        // alone and the midline stays behind, folding the cap. `[N23]`
+        var rest_corners = ring_corners(new cage_constants{ rings = rings }, rest);
         void midline(int slot, string joint){
             var r = rings[slot];
             var anchor = js(joint);
             var mid = (rest_corners[slot * 4 + hi_front] + rest_corners[slot * 4 + lo_front]) * 0.5f;
             var off = mid - rest[anchor[0]];
             at[(slot, edge.mid)] = post(r.name + " mid", anchor, new[]{ 1f }, off - r.d * Vector3.Dot(off, r.d), r.d, r.anchor_hi.Concat(r.anchor_lo).Distinct().ToArray(),
-                (r.hi_back + r.lo_back) * 0.5f, (r.hi_front + r.lo_front) * 0.5f);
+                (r.hi_back + r.lo_back) * 0.5f, (r.hi_front + r.lo_front) * 0.5f, r.girth);
         }
         midline(crown, "Head");
         midline(head, "Head");
@@ -665,8 +694,8 @@ public static class cage{
         // chest, and without it the throat and the sternum would come back with them.
         var shoulders = js("LeftArm", "RightArm");
         var arm = rings[arm_hi];
-        at[(neck, edge.mid)] = post("neck mid", js("Neck"), new[]{ 1f }, Vector3.zero, depth, shoulders, arm.hi_back, arm.hi_front + tune.neck_front / scale);
-        at[(sternum, edge.mid)] = post("sternum mid", js("Spine3"), new[]{ 1f }, Vector3.zero, depth, shoulders, arm.lo_back, arm.lo_front + tune.sternum_front / scale);
+        at[(neck, edge.mid)] = post("neck mid", js("Neck"), new[]{ 1f }, Vector3.zero, depth, shoulders, arm.hi_back, arm.hi_front + tune.neck_front / scale, new cage_span[0]);
+        at[(sternum, edge.mid)] = post("sternum mid", js("Spine3"), new[]{ 1f }, Vector3.zero, depth, shoulders, arm.lo_back, arm.lo_front + tune.sternum_front / scale, new cage_span[0]);
         midline(spine, "Spine");
         midline(spine1, "Spine1");
         midline(spine2, "Spine2");
@@ -683,7 +712,7 @@ public static class cage{
         var pelvis_seat = Vector3.Dot(rest[hips], depth);
         int pelvis_post(string name, int[] anchor, float[] weight, Vector3 reach){
             return post(name, anchor, weight, reach, depth, new[]{ hips },
-                pelvis_seat - pelvis_back + tune.pelvis_back / scale, pelvis_front - pelvis_seat + tune.pelvis_front / scale);
+                pelvis_seat - pelvis_back + tune.pelvis_back / scale, pelvis_front - pelvis_seat + tune.pelvis_front / scale, new cage_span[0]);
         }
         var drop = up * (tune.crotch_drop / scale);
         var f = tune.hip_out;
@@ -713,7 +742,7 @@ public static class cage{
         void foot(string prefix, string tag, int ankle, int toe, int station){
             var joint = index[prefix + "Foot"];
             var ball = index[prefix + "ToeBase"];
-            var hip_bone = js(prefix + "UpLeg");
+            var hip_bone = bone(prefix + "UpLeg");
             var floor = Vector3.Dot(rest[joint] - rest_corners[ankle * 4 + lo_back], up);
             rings[toe].d_lo_anchor = new[]{ joint };
             rings[toe].hi_back = rings[toe].lo_back = floor;
@@ -766,7 +795,7 @@ public static class cage{
                 posts.Add(new cage_post{
                     name = name, anchor = anchor, weight = weight, reach = reach,
                     d = d, d_lo_anchor = new[]{ wrist }, d_hi_anchor = new[]{ wrist }, d_lo = seat - plate_lo, d_hi = plate_hi - seat,
-                    girth = new int[0],
+                    girth = new cage_span[0],
                 });
                 return posts.Count - 1;
             }
