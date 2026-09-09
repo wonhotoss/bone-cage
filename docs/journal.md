@@ -949,3 +949,30 @@ arm 링이 이음선 하나가 되어 쇄골을 따르게 된 지금, 삼각근 
 - `rebuild cage` → assertion 통과, rest 포함 0, 삼각근이 상완 판 밖으로 새지 않는지 눈으로. 새면 `arm tilt`·`arm length`로 받는다.
 - `export sweep data` → 스윕(정점 수가 바뀌어 이전 결과와 직접 비교는 안 된다).
 - 단일 사지 링에 `girth` 채우기(팔꿈치·손목 ← 쇄골, 무릎·발목 ← 고관절).
+
+---
+
+## 2026-09-09 (이어서) — 뿌리의 비가 말단까지: 사지 링의 girth
+
+커밋: (이 항목). 씬은 별도로 — `rebuild cage` 뒤.
+
+### 룰 3
+사지 뿌리 링의 확장·축소를 말단 링으로 전파한다. 원본 비율에 대한 확장비를 **그대로** 넘기는 것으로 충분하다고 정했다 — 링마다 다른 곡선을 둘 근거가 아직 없다.
+
+- **다리 — 폭.** hip → knee → ankle → toe → tip. `L/R knee`·`ankle`·`toe` 링의 `girth` = 고관절 뼈(LeftUpLeg / RightUpLeg 관절). 세 링 모두 `s = side`라 곱해지는 것이 폭이다. `L/R hip` 기둥이 이미 `(1+f)·UpLeg`로 그 뼈를 따르므로 비의 출처가 같다.
+- **팔 — 높이.** arm → elbow → wrist. `L/R elbow`·`wrist` 링의 `girth` = 쇄골(LeftArm / RightArm 관절), arm 링과 같은 뼈. `s = up`이라 곱해지는 것이 높이다. 손목 링의 실루엣은 손이 덮어쓴 값이지만 그것도 곱한다.
+- **tip 기둥.** `cage_post`에 `girth` 열을 두고 `post_ends`가 `reach`에 비를 곱한다. tip의 `reach`는 가상 endbone에서 `side`로 발가락 폭까지의 오프셋이라 곱하면 뚜껑이 발 정중선 기준으로 넓어진다. `d` 끝(위끝 높이, 평평한 발바닥)은 그대로. 다른 기둥은 빈 girth.
+- **손등 이후는 따르지 않는다** — 손 기둥은 빈 girth. 따로 생각할 일로 남긴다.
+- **깊이는 곱하지 않는다** — 여전히 깊이 복원 패스의 몫.
+
+### 코드
+`recipe`에 `girth` 필드(기본 빈 배열)를 두고 §3 표의 행이 코드 한 줄에 대응하게 했다 — arm 링의 덮어쓰기 블록이 `girth = anchor`를 손으로 넣던 것을 걷어냈다. 비를 읽는 식은 `ring_corners`·`post_ends` 둘이 쓰므로 `girth(k, jc, joint)` 하나로 뺐다. 새 튠은 없다. rest에서 비가 1이라 rest 케이지는 그대로다.
+
+### 검증
+`dotnet build`(sweep 프로젝트가 `cage.cs`를 그대로 컴파일한다) 에러 0, 경고 0. 에디터 재bake·포함·스윕은 돌리지 않았다. `constants.json`은 이제 `cage_post.girth`도 없어 로더가 터지므로 `rebuild cage` → `export sweep data`가 먼저다.
+
+### 남긴 일
+- `rebuild cage` → rest 포함 0 확인 → `export sweep data` → 스윕. 특히 `L/R knee beside crotch`·`L/R arm beside head` 여유가 굵어진 링에서도 맞는지 — gate 여유 넷은 driver 없는 폭에 튠된 값이다(§9).
+- 눈으로: 고관절 0.5 / 1.5에서 다리가 발끝까지 절반 / 1.5배 폭으로, 쇄골 0.5 / 1.5에서 팔이 손목까지 절반 / 1.5배 높이로 보이는지. 손목에서 손으로 넘어가는 단이 얼마나 눈에 띄는지.
+- 손등 이후.
+- 깊이 복원 패스(`neck mid`·`sternum mid` 소속 포함).
