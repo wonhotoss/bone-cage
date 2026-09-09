@@ -719,9 +719,18 @@ public static class cage{
         var pelvis = js("Hips", "LeftUpLeg", "RightUpLeg").SelectMany(j => flesh[j]).ToArray();
         var (pelvis_back, pelvis_front) = inflate(pelvis.Min(p => Vector3.Dot(p, depth)), pelvis.Max(p => Vector3.Dot(p, depth)));
         var pelvis_seat = Vector3.Dot(rest[hips], depth);
+        // The crotch hangs as far below the Hips joint as the hips are wide: its drop follows the
+        // span between the two UpLeg joints across side. The hip bones are purely lateral, so that
+        // span is the two bones' sum and its ratio to rest the mean of their two ratios -- one hip
+        // edited alone moves it half way. The outer hip posts take the same ratio on their own reach,
+        // which is f times the drop, so they stay on the crotch->UpLeg line extended. `[N26]`
+        var hip_width = new[]{ new cage_span{
+            a = js("LeftUpLeg"), b = js("RightUpLeg"), axis = side,
+            rest = Vector3.Dot(rest[index["LeftUpLeg"]] - rest[index["RightUpLeg"]], side),
+        } };
         int pelvis_post(string name, int[] anchor, float[] weight, Vector3 reach){
             return post(name, anchor, weight, reach, depth, new[]{ hips },
-                pelvis_seat - pelvis_back + tune.pelvis_back / scale, pelvis_front - pelvis_seat + tune.pelvis_front / scale, new cage_span[0]);
+                pelvis_seat - pelvis_back + tune.pelvis_back / scale, pelvis_front - pelvis_seat + tune.pelvis_front / scale, hip_width);
         }
         var drop = up * (tune.crotch_drop / scale);
         var f = tune.hip_out;
