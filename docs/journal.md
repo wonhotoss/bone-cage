@@ -1092,3 +1092,40 @@ arm 링이 이음선 하나가 되어 쇄골을 따르게 된 지금, 삼각근 
 - 재bake 후 눈으로: 양쪽 고관절 1.5에서 가랑이가 1.5배 내려오고 고관절 기둥이 그 직선 위에 있는지, 한쪽만 1.5에서 1.25배인지.
 - 스윕: 가랑이가 내려가면 `spine above hips`의 바닥(고관절 기둥 네 끝)이 f배 올라가고 `knee beside crotch`의 바닥이 내려간다 — 두 gate의 여유를 다시 본다. 고관절 0.5에서 crotch가 올라가 안쪽 허벅지 벽이 짧아지는 것도.
 - 룰 3~6의 남긴 일 그대로.
+
+---
+
+## 2026-09-09 (이어서) — 깊이 복원 전에: 독립 정의를 가진 정중선 기둥을 걷어내다
+
+커밋: (이 항목). 씬은 별도로 — `rebuild cage` 뒤, `arm lo front`를 0.08로 올린 뒤.
+
+### 계획
+1. `sternum mid`의 독립 정의 삭제. v74·v75는 `L/R arm`의 lo_front 둘을 잇는 선분과 정중선의 교점, lo_back 둘의 교점이다. `sternum front`(0.025)는 지우고 arm lo `front`(0.055)에 올려 지금의 흉골 앞을 유지한다 — 겨드랑이 앞 코너도 그만큼 나온다.
+2. 양 겨드랑이 앞뒤 네 코너에서 spine 링 네 코너로 직선이 내려가고, spine1·spine2는 자기 관절 높이의 평면이 그 넷을 자르는 중간 링이다. 자기 폭·깊이가 없다.
+
+### 왜 지금인가
+두께 driver는 구간 단위로 도착한다(09-07 probe의 나비 단면). 링과 따로 구운 깊이를 가진 정중선 기둥은 곱할 때마다 소속을 따져야 하는 이웃이었고, 깊이 복원(`girth_d`)이 그 기둥들에 닥치기 전에 정의 자체를 없애는 쪽이 낫다.
+
+### 기구 — 걸침 세 단계
+걸친 변(`[N21]`)의 일반화. 공통 연산은 교점 하나: `crossing(A, B, axis, plane) = lerp(A, B, clamp01((plane − A·axis) / ((B − A)·axis)))`.
+1. **걸친 변** — 교점의 `s`만(spine 링, 기존).
+2. **네 귀퉁이 걸침** — `cage_ring.between`(코너마다 정점 둘), 코너 = 교점 그 자체. spine1·spine2: 코너 c = 그쪽 arm 링 lo 코너 c → spine 코너 c.
+3. **걸친 끝** — `cage_post.hi/lo_between` + `between_axis`, 끝 = 교점(정중선 기둥은 `side`). `sternum mid`, `spine1 mid`, `spine2 mid`. 구운 오프셋이 없다.
+
+각 단계는 앞 단계까지만 읽는다 — 관절 → 링·기둥 → 변 → 코너 → 끝. `[N16]`의 한 방향 규칙은 그대로다.
+
+### 결과
+- sternum의 높이가 Spine3에서 풀린다. rest에서는 거의 같은 높이지만 chest 뼈만 편집하면 이제 겨드랑이를 따른다. 가슴 띠가 구성상 평면.
+- spine1·spine2의 폭은 그대로(spine 링이 이미 `hip → 겨드랑이` 선 위), 깊이만 측정값 → 보간값. `spine1/2 front/back` 튠 넷(전부 0이었다)과 `sternum front`, 슬라이더 다섯이 사라졌다.
+- gate 뒤의 어긋남은 걸친 변과 같은 조건 — rest에서 lift 0.
+- `--probe`에서 spine1·spine2 행은 전달비 0이 정상(곱할 자기 값이 없다).
+- `spine mid`·`crown mid`·`head mid`는 그대로 구운 오프셋 방식 — 같은 교점으로 바꾸면 `midline()`과 그 girth가 함께 사라진다. 다음에.
+
+### 검증
+`dotnet build` 에러 0, 경고 0. 재bake·포함·스윕은 돌리지 않았다. 새 필드가 생겨 `rebuild cage` → `export sweep data`가 먼저다.
+
+### 남긴 일
+- 에디터: `arm ring lo front reach`를 0.08로 → `rebuild cage` → rest 포함 0 확인(흉골·윗가슴·배가 새지 않는지, 겨드랑이 앞 코너가 2.5 cm 나온 것이 눈에 어떤지) → `export sweep data` → 스윕.
+- chest 0.5에서 가슴 띠(자기겹침 지도 B)가 여전히 0인지 — 평면이 됐으니 더 좋아야 한다.
+- 나머지 정중선 기둥(`spine`·`crown`·`head` mid)도 교점으로.
+- 그 뒤 깊이 복원: 어느 링에 `girth_d = girth`를 적을지.
