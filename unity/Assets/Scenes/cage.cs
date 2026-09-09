@@ -791,11 +791,11 @@ public static class cage{
             var (plate_lo, plate_hi) = inflate(skin.Min(p => Vector3.Dot(p, d)), skin.Max(p => Vector3.Dot(p, d)));
             var seat = Vector3.Dot(rest[wrist], d);
 
-            int add(string name, int[] anchor, float[] weight, Vector3 reach){
+            int add(string name, int[] anchor, float[] weight, Vector3 reach, cage_span[] girth){
                 posts.Add(new cage_post{
                     name = name, anchor = anchor, weight = weight, reach = reach,
                     d = d, d_lo_anchor = new[]{ wrist }, d_hi_anchor = new[]{ wrist }, d_lo = seat - plate_lo, d_hi = plate_hi - seat,
-                    girth = new cage_span[0],
+                    girth = girth,
                 });
                 return posts.Count - 1;
             }
@@ -819,23 +819,27 @@ public static class cage{
             var thumb = index[prefix + "Thumb2"];
             var pinky = index[prefix + "Pinky1"];
 
+            // The palm's points keep their rest offsets: the back of the hand is one plate, not a
+            // section of any finger.
             var cp = new int[6];
-            cp[0] = add($"{tag} thumb out", new[]{ thumb }, new[]{ 1f }, s * (wide_hi - Vector3.Dot(rest[thumb], s) + tune.thumb_out / scale));
+            cp[0] = add($"{tag} thumb out", new[]{ thumb }, new[]{ 1f }, s * (wide_hi - Vector3.Dot(rest[thumb], s) + tune.thumb_out / scale), new cage_span[0]);
             for(var f = 0; f < 4; f++){
                 // The thumb branches off at its own second joint, the rest at their roots.
                 var a = f == 0 ? thumb : index[prefix + fingers[f] + "1"];
                 var b = index[prefix + fingers[f + 1] + "1"];
                 var span = (rest[a] + rest[b]) * 0.5f - rest[wrist];
                 var away = (span - d * Vector3.Dot(span, d)).normalized;
-                cp[f + 1] = add($"{tag} {fingers[f].ToLower()}|{fingers[f + 1].ToLower()}", new[]{ a, b }, new[]{ 0.5f, 0.5f }, away * (tune.valley_reach / scale));
+                cp[f + 1] = add($"{tag} {fingers[f].ToLower()}|{fingers[f + 1].ToLower()}", new[]{ a, b }, new[]{ 0.5f, 0.5f }, away * (tune.valley_reach / scale), new cage_span[0]);
             }
-            cp[5] = add($"{tag} pinky out", new[]{ pinky }, new[]{ 1f }, s * (wide_lo - Vector3.Dot(rest[pinky], s) - tune.pinky_out / scale));
+            cp[5] = add($"{tag} pinky out", new[]{ pinky }, new[]{ 1f }, s * (wide_lo - Vector3.Dot(rest[pinky], s) - tune.pinky_out / scale), new cage_span[0]);
 
             // Rings up one finger, past the branch ring it shares with its neighbours: one on every
             // joint out from the second, then one more on a virtual end bone, since the rig stops at
             // the last phalanx. Each ring straddles its own bone direction rather than the s axis,
             // so a splayed finger is still enclosed. The thumb is one ring short: its branch ring
-            // already sits at the knuckle.
+            // already sits at the knuckle. Each ring's width follows the phalanx it stands on -- the
+            // bone from the previous joint to its own, the last phalanx for the end ring -- so a
+            // longer finger is a thicker one, segment by segment. `[N24]`
             (int hi, int lo)[] climb(int f){
                 var last = index[prefix + fingers[f] + "3"];
                 var tip = subtree(last, parent).SelectMany(j => flesh[j]);
@@ -862,8 +866,9 @@ public static class cage{
                     var anchor = e.past > 0f ? new[]{ e.j, parent[e.j] } : new[]{ e.j };
                     var weight = e.past > 0f ? new[]{ 1f + e.past, -e.past } : new[]{ 1f };
                     var name = $"{tag} {fingers[f].ToLower()} {i + 2}";
-                    return (hi: add(name, anchor, weight, perp * (r_hi - at + (extra.hi + tune.finger_out) / scale)),
-                            lo: add(name, anchor, weight, perp * (r_lo - at - (extra.lo + tune.finger_out) / scale)));
+                    var phalanx = bone(bones[e.j].name);
+                    return (hi: add(name, anchor, weight, perp * (r_hi - at + (extra.hi + tune.finger_out) / scale), phalanx),
+                            lo: add(name, anchor, weight, perp * (r_lo - at - (extra.lo + tune.finger_out) / scale), phalanx));
                 }).ToArray();
             }
 
