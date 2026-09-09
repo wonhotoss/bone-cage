@@ -54,6 +54,9 @@ public class cage_ring{
                                 // the ring's silhouette follows it; empty and it keeps its rest size. A limb's
                                 // rings all follow its root bone: the arm, elbow and wrist the clavicle, the
                                 // knee, ankle and toe the hip `[N22]`; the head rings follow the stature `[N23]`.
+    public cage_span[] girth_d; // the same for the four depth reaches below: what the ring's thickness across
+                                // d follows. The wrist ring's is the palm's breadth, thumb to pinky `[N25]`;
+                                // empty and the depth keeps its rest reach.
     public int[] hi_between, lo_between;    // two placed control points the edge lies between: its s
                                             // coordinate is theirs, taken where the ring's plane falls
                                             // between their n coordinates; empty and the edge keeps its
@@ -99,6 +102,9 @@ public class cage_post{
     public cage_span[] girth;   // as a ring's: the span whose current over rest length scales reach. The toe
                                 // tips follow the hip, so the cap widens with the leg `[N22]`; a midline post
                                 // follows its ring, so a section scales whole `[N23]`; empty elsewhere.
+    public cage_span[] girth_d; // the same for d_lo and d_hi: what the post's thickness follows. A hand's
+                                // posts follow its wrist ring's silhouette, so the plate is as thick as the
+                                // arm it ends `[N25]`; empty elsewhere.
 }
 
 // A correction applied once every ring and post is placed, because it reads one part of the cage
@@ -308,13 +314,14 @@ public static class cage{
             var edge_hi = r.s * (a_hi.Max(p => Vector3.Dot(p, r.s)) + r.s_hi * by);
             var edge_lo = r.s * (a_lo.Min(p => Vector3.Dot(p, r.s)) - r.s_lo * by);
 
+            var deep = girth(jc, r.girth_d);
             var front = r.d_hi_anchor.Max(j => Vector3.Dot(jc[j], r.d));
             var back = r.d_lo_anchor.Min(j => Vector3.Dot(jc[j], r.d));
 
-            verts[i * 4 + hi_front] = plane_hi + edge_hi + r.d * (front + r.hi_front);
-            verts[i * 4 + hi_back] = plane_hi + edge_hi + r.d * (back - r.hi_back);
-            verts[i * 4 + lo_back] = plane_lo + edge_lo + r.d * (back - r.lo_back);
-            verts[i * 4 + lo_front] = plane_lo + edge_lo + r.d * (front + r.lo_front);
+            verts[i * 4 + hi_front] = plane_hi + edge_hi + r.d * (front + r.hi_front * deep);
+            verts[i * 4 + hi_back] = plane_hi + edge_hi + r.d * (back - r.hi_back * deep);
+            verts[i * 4 + lo_back] = plane_lo + edge_lo + r.d * (back - r.lo_back * deep);
+            verts[i * 4 + lo_front] = plane_lo + edge_lo + r.d * (front + r.lo_front * deep);
         }
         return verts;
     }
@@ -328,9 +335,10 @@ public static class cage{
             var p = k.posts[i];
             var at = p.anchor.Select((j, a) => jc[j] * p.weight[a]).Aggregate((x, y) => x + y) + p.reach * girth(jc, p.girth);
             var flat = at - p.d * Vector3.Dot(at, p.d);
+            var deep = girth(jc, p.girth_d);
 
-            verts[i * 2 + post_hi] = flat + p.d * (p.d_hi_anchor.Max(j => Vector3.Dot(jc[j], p.d)) + p.d_hi);
-            verts[i * 2 + post_lo] = flat + p.d * (p.d_lo_anchor.Min(j => Vector3.Dot(jc[j], p.d)) - p.d_lo);
+            verts[i * 2 + post_hi] = flat + p.d * (p.d_hi_anchor.Max(j => Vector3.Dot(jc[j], p.d)) + p.d_hi * deep);
+            verts[i * 2 + post_lo] = flat + p.d * (p.d_lo_anchor.Min(j => Vector3.Dot(jc[j], p.d)) - p.d_lo * deep);
         }
         return verts;
     }
@@ -621,6 +629,7 @@ public static class cage{
                 s_lo = lo.Min(j => Vector3.Dot(rest[j], r.s)) - lo_s + r.lo / scale,
                 s_hi = hi_s - hi.Max(j => Vector3.Dot(rest[j], r.s)) + r.hi / scale,
                 girth = r.girth,
+                girth_d = new cage_span[0],
                 hi_between = new int[0],
                 lo_between = new int[0],
                 hi_front = hi_d - anchors.Max(p => Vector3.Dot(p, r.d)) + r.front.hi / scale,
@@ -664,7 +673,7 @@ public static class cage{
         int post(string name, int[] anchor, float[] weight, Vector3 reach, Vector3 d, int[] d_anchor, float d_lo, float d_hi, cage_span[] girth){
             posts.Add(new cage_post{
                 name = name, anchor = anchor, weight = weight, reach = reach,
-                d = d, d_lo_anchor = d_anchor, d_hi_anchor = d_anchor, d_lo = d_lo, d_hi = d_hi, girth = girth,
+                d = d, d_lo_anchor = d_anchor, d_hi_anchor = d_anchor, d_lo = d_lo, d_hi = d_hi, girth = girth, girth_d = new cage_span[0],
             });
             return posts.Count - 1;
         }
@@ -760,7 +769,7 @@ public static class cage{
                 posts.Add(new cage_post{
                     name = $"{tag} tip", anchor = anchor, weight = weight, reach = reach, d = up,
                     d_lo_anchor = new[]{ joint }, d_hi_anchor = new[]{ ball }, d_lo = floor, d_hi = top - Vector3.Dot(rest[ball], up),
-                    girth = hip_bone,
+                    girth = hip_bone, girth_d = new cage_span[0],
                 });
                 return posts.Count - 1;
             }
@@ -787,15 +796,18 @@ public static class cage{
             var skin = subtree(wrist, parent).SelectMany(j => flesh[j]).ToArray();
 
             // One thickness for the whole hand, measured over all of its flesh: every post straddles
-            // it, which is what keeps the side panels axis aligned and equally tall.
+            // it, which is what keeps the side panels axis aligned and equally tall. It follows what
+            // the wrist ring's silhouette follows -- the clavicle, down the arm -- so the hand is as
+            // thick as the arm it ends, with no step at the wrist. `[N25]`
             var (plate_lo, plate_hi) = inflate(skin.Min(p => Vector3.Dot(p, d)), skin.Max(p => Vector3.Dot(p, d)));
             var seat = Vector3.Dot(rest[wrist], d);
+            var thick = rings[slot].girth;
 
             int add(string name, int[] anchor, float[] weight, Vector3 reach, cage_span[] girth){
                 posts.Add(new cage_post{
                     name = name, anchor = anchor, weight = weight, reach = reach,
                     d = d, d_lo_anchor = new[]{ wrist }, d_hi_anchor = new[]{ wrist }, d_lo = seat - plate_lo, d_hi = plate_hi - seat,
-                    girth = girth,
+                    girth = girth, girth_d = thick,
                 });
                 return posts.Count - 1;
             }
@@ -811,6 +823,13 @@ public static class cage{
             rings[slot].s_lo = seat - plate_lo + wrist_drop / scale;
             rings[slot].hi_front = rings[slot].lo_front = palm_hi - Vector3.Dot(rest[wrist], s) + tune.wrist_thumb / scale;
             rings[slot].hi_back = rings[slot].lo_back = Vector3.Dot(rest[wrist], s) - palm_lo + tune.wrist_pinky / scale;
+            // Across, the wrist follows the palm's breadth: the thumb's knuckle to the pinky's, along
+            // s, which the metacarpals spread as they lengthen. `[N25]`
+            var thumb_root = index[prefix + "Thumb2"];
+            var pinky_root = index[prefix + "Pinky1"];
+            rings[slot].girth_d = new[]{ new cage_span{
+                a = new[]{ thumb_root }, b = new[]{ pinky_root }, axis = s, rest = Vector3.Dot(rest[thumb_root] - rest[pinky_root], s),
+            } };
 
             // The six control points that carve the palm outline into finger branches. The thumb
             // and pinky ends come from the hand's own width; the four valleys sit halfway between
