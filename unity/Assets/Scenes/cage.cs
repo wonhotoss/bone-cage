@@ -166,8 +166,10 @@ public class cage_tune{
     public float arm_tilt = 7f;     // degrees the arm rings lean in at the top about the depth axis, seen from
                                     // the front: the raglan seam from the armpit up over the trapezius
     public float arm_length = 0.16f;    // the seam's length, armpit edge to top edge, the shoulder joint at its middle
-    public float arm_hi_front = 0f, arm_hi_back = 0f;   // depth reach of the arm rings' top edge, across the trapezius
-    public float arm_lo_front = 0f, arm_lo_back = 0f;   // and of their bottom edge, across the armpit
+    public float body_front = 0f, body_back = 0f;   // depth reach of the trunk past its flesh, off the Hips joint:
+                                                    // the chest and belly (front), the buttocks and shoulder blades
+                                                    // (back). The arm rings, the neck post, the spine ring and the
+                                                    // pelvis posts all share it, so the torso is a box from the side `[N28]`
     public float head_tilt = 25f;       // degrees the head ring's plane leans forward about the side axis, chin down
     public float head_offset = 0.023f;  // how far above the Head joint that plane sits, along its own normal
     public float head_front = 0f, head_back = 0f;   // depth reach of the head ring: chin and occiput
@@ -183,16 +185,10 @@ public class cage_tune{
                                              // before the gate stops the whole ring; negative demands a gap
                                              // instead, and here it must -- stopped flush both rings stand
                                              // on the midline and the panels still graze `[N20]`
-    public float neck_front = 0f;   // how far ahead of the arm rings' top edge the V's floor stands, so
-                                    // drawing that edge in over the chest does not drag the throat in with it
     public float crown_front = 0f;  // depth reach of the crown ring: the chest and belly (front) and the
     public float crown_back = 0f;   // shoulder blades (back) sit under the torso panel these two rings span
-    public float spine_front = 0f;  // the same on the spine ring, the torso panel's bottom edge
-    public float spine_back = 0f;
     public float crotch_drop = 0.15f;   // how far below the Hips joint the crotch post sits, along up
     public float hip_out = 1f;          // ratio: an outer hip post is this many crotch->UpLeg spans past its UpLeg
-    public float pelvis_front = 0f;     // depth reach of the three pelvis posts past the pelvis flesh:
-    public float pelvis_back = 0f;      // the belly and pubis (front), the buttocks (back)
     public float knee_out = 0f;         // reach of both knee rings' outer edge, away from the other leg
     public float knee_back = 0.1f;      // and of their back edge, past the hamstring and calf
     public float ankle_tilt = 45f;      // degrees the ankle rings' plane leans back from horizontal about the side axis: heel down, instep up
@@ -528,6 +524,8 @@ public static class cage{
                                     // anchor, so an edge moved along a limb keeps the girth it had
                                     // there. Unequal values tilt the ring.
         public cage_span[] girth = new cage_span[0];    // the span the silhouette scales with (cage_ring.girth)
+        public bool body;           // depth is the trunk's, off the Hips joint (body front / back), not
+                                    // measured off this ring's own flesh `[N28]`
     }
 
     public static cage_constants bake(SkinnedMeshRenderer source, cage_tune tune){
@@ -570,9 +568,9 @@ public static class cage{
         } };
 
         // The reach fields pull a panel out over flesh the rings themselves do not see, and belong
-        // to whichever ring bounds that panel there. The torso panels split at the midline, so their
-        // depth interpolates crown to spine: the chest and back are the crown and spine rings'
-        // business, and depth reach on the arm rings would only bulge the side of the torso. Editable.
+        // to whichever ring bounds that panel there. The torso's depth is one value for the whole
+        // trunk (body, below), so every ring and post on it stands on the same front and back lines;
+        // the head and the limbs measure their own. Editable.
         var recipes = new recipe[17];
         recipes[crown] = new recipe{ name = "crown", anchor = js("Head"), wrap = js("Head"), n = up, s = side, d = depth, kind = fit.cap, girth = stature, front = (tune.crown_front, tune.crown_front), back = (tune.crown_back, tune.crown_back) };
         // The head ring parts the head from the neck. The chin hangs ahead of and below the skull
@@ -584,19 +582,19 @@ public static class cage{
         recipes[head] = new recipe{ name = "head", anchor = js("Head"), wrap = js("Head"), n = Mathf.Cos(tilt) * up + Mathf.Sin(tilt) * depth, s = side, d = Mathf.Cos(tilt) * depth - Mathf.Sin(tilt) * up, kind = fit.split, girth = stature, outward_hi = tune.head_offset, outward_lo = tune.head_offset, front = (tune.head_front, tune.head_front), back = (tune.head_back, tune.head_back) };
         // The arm rings' silhouette edges are not measured: they are set below as a line through the
         // shoulder joint. Only their depth comes from the flesh.
-        recipes[arm_hi] = new recipe{ name = "L arm", anchor = js("LeftArm"), wrap = js("LeftShoulder"), n = side, s = up, d = depth, kind = fit.joint, girth = bone("LeftArm"), front = (tune.arm_hi_front, tune.arm_lo_front), back = (tune.arm_hi_back, tune.arm_lo_back) };
+        recipes[arm_hi] = new recipe{ name = "L arm", anchor = js("LeftArm"), wrap = js("LeftShoulder"), n = side, s = up, d = depth, kind = fit.joint, girth = bone("LeftArm"), body = true };
         recipes[elbow_hi] = new recipe{ name = "L elbow", anchor = js("LeftForeArm"), wrap = js("LeftArm"), n = side, s = up, d = depth, kind = fit.joint, girth = bone("LeftArm"), hi = tune.elbow_hi };
         // The wrist rings hand the arms over to the hands, which measure them: their extents are
         // overwritten below, since both need flesh windows the generic measure cannot express.
         recipes[wrist_hi] = new recipe{ name = "L wrist", anchor = js("LeftHand"), wrap = js("LeftHand"), n = side, s = up, d = depth, kind = fit.joint, girth = bone("LeftArm") };
-        recipes[arm_lo] = new recipe{ name = "R arm", anchor = js("RightArm"), wrap = js("RightShoulder"), n = -side, s = up, d = depth, kind = fit.joint, girth = bone("RightArm"), front = (tune.arm_hi_front, tune.arm_lo_front), back = (tune.arm_hi_back, tune.arm_lo_back) };
+        recipes[arm_lo] = new recipe{ name = "R arm", anchor = js("RightArm"), wrap = js("RightShoulder"), n = -side, s = up, d = depth, kind = fit.joint, girth = bone("RightArm"), body = true };
         recipes[elbow_lo] = new recipe{ name = "R elbow", anchor = js("RightForeArm"), wrap = js("RightArm"), n = -side, s = up, d = depth, kind = fit.joint, girth = bone("RightArm"), hi = tune.elbow_hi };
         recipes[wrist_lo] = new recipe{ name = "R wrist", anchor = js("RightHand"), wrap = js("RightHand"), n = -side, s = up, d = depth, kind = fit.joint, girth = bone("RightArm") };
         // The spine ring is the torso panel's bottom edge, level across the Spine joint; it wraps
         // whatever crosses that height, so the waist. The pelvis below it is posts, not a ring. The
         // two rings above it, on Spine1 and Spine2, section the belly and the lower chest the same
         // way, so the torso panel gets a rung at every spine joint up to the sternum.
-        recipes[spine] = new recipe{ name = "spine", anchor = js("Spine"), wrap = js("Hips"), n = up, s = side, d = depth, kind = fit.joint, front = (tune.spine_front, tune.spine_front), back = (tune.spine_back, tune.spine_back) };
+        recipes[spine] = new recipe{ name = "spine", anchor = js("Spine"), wrap = js("Hips"), n = up, s = side, d = depth, kind = fit.joint, body = true };
         // The two are intermediate rings: they keep only their plane, at their joint, and take their
         // corners off the lines from the armpits down to the spine ring (below, between). What
         // measure() reads off the flesh for them goes unused.
@@ -630,6 +628,20 @@ public static class cage{
         // Ring geometry is native (rig root local), so the recipes' scene-unit reach converts here.
         var scale = root.lossyScale.x;
 
+        // The trunk's depth, one pair of lines for the whole torso: the flesh of the Hips subtree
+        // less the limbs and the head, its depth extents inflated, off the Hips joint. Seen from the
+        // side the torso is a box -- the arm rings, the neck post, the spine ring and the pelvis
+        // posts stand on these two lines, and the rings and posts between them follow by
+        // construction (between). `[N28]`
+        var hips = index["Hips"];
+        var trunk = subtree(hips, parent)
+            .Except(js("LeftUpLeg", "RightUpLeg", "LeftArm", "RightArm", "Head").SelectMany(j => subtree(j, parent)))
+            .SelectMany(j => flesh[j]).ToArray();
+        var (trunk_back, trunk_front) = inflate(trunk.Min(p => Vector3.Dot(p, depth)), trunk.Max(p => Vector3.Dot(p, depth)));
+        var trunk_seat = Vector3.Dot(rest[hips], depth);
+        var body_front = trunk_front - trunk_seat + tune.body_front / scale;
+        var body_back = trunk_seat - trunk_back + tune.body_back / scale;
+
         // Fit one ring to the rest flesh it must enclose: how far past its anchors the plane sits,
         // and how far the rectangle reaches beyond the anchors' span on each side.
         cage_ring measure(recipe r){
@@ -661,8 +673,8 @@ public static class cage{
                 name = r.name,
                 anchor_hi = hi,
                 anchor_lo = lo,
-                d_hi_anchor = r.anchor,
-                d_lo_anchor = r.anchor,
+                d_hi_anchor = r.body ? new[]{ hips } : r.anchor,
+                d_lo_anchor = r.body ? new[]{ hips } : r.anchor,
                 n = r.n,
                 s = r.s,
                 d = r.d,
@@ -675,10 +687,10 @@ public static class cage{
                 between = new int[0],
                 hi_between = new int[0],
                 lo_between = new int[0],
-                hi_front = hi_d - anchors.Max(p => Vector3.Dot(p, r.d)) + r.front.hi / scale,
-                lo_front = hi_d - anchors.Max(p => Vector3.Dot(p, r.d)) + r.front.lo / scale,
-                hi_back = anchors.Min(p => Vector3.Dot(p, r.d)) - lo_d + r.back.hi / scale,
-                lo_back = anchors.Min(p => Vector3.Dot(p, r.d)) - lo_d + r.back.lo / scale,
+                hi_front = r.body ? body_front : hi_d - anchors.Max(p => Vector3.Dot(p, r.d)) + r.front.hi / scale,
+                lo_front = r.body ? body_front : hi_d - anchors.Max(p => Vector3.Dot(p, r.d)) + r.front.lo / scale,
+                hi_back = r.body ? body_back : anchors.Min(p => Vector3.Dot(p, r.d)) - lo_d + r.back.hi / scale,
+                lo_back = r.body ? body_back : anchors.Min(p => Vector3.Dot(p, r.d)) - lo_d + r.back.lo / scale,
             };
         }
 
@@ -741,12 +753,8 @@ public static class cage{
         midline(crown, "Head");
         midline(head, "Head");
         // The bottom of the neck's V, on the Neck joint itself, closing the rung of the arm rings'
-        // top edges: it takes that edge's depth, spread over both shoulders, plus a reach of its
-        // own -- the arm rings' edges are drawn in over the chest, and without it the throat would
-        // come back with them.
-        var shoulders = js("LeftArm", "RightArm");
-        var arm = rings[arm_hi];
-        at[(neck, edge.mid)] = post("neck mid", js("Neck"), new[]{ 1f }, Vector3.zero, depth, shoulders, arm.hi_back, arm.hi_front + tune.neck_front / scale, new cage_span[0]);
+        // top edges: as deep as the trunk, like those edges. `[N28]`
+        at[(neck, edge.mid)] = post("neck mid", js("Neck"), new[]{ 1f }, Vector3.zero, depth, new[]{ hips }, body_back, body_front, new cage_span[0]);
 
         // A midline post with no depth of its own: each end is where the line between two placed
         // control points crosses the midline plane through its joint. The sternum is the armpits'
@@ -772,12 +780,8 @@ public static class cage{
         // hip post continues the crotch->UpLeg line past its UpLeg by hip_out of that span, as the
         // (1+f, -f) combination of UpLeg and Hips plus that share of the drop -- so widening one hip
         // carries its post outward and tilts that leg's ring, while the crotch stays put. The three
-        // share one depth, the pelvis flesh's, the way a hand's posts share the plate: anchored on
-        // Hips so the pelvis panels stay a flat slab between the waist ring and the thighs.
-        var hips = index["Hips"];
-        var pelvis = js("Hips", "LeftUpLeg", "RightUpLeg").SelectMany(j => flesh[j]).ToArray();
-        var (pelvis_back, pelvis_front) = inflate(pelvis.Min(p => Vector3.Dot(p, depth)), pelvis.Max(p => Vector3.Dot(p, depth)));
-        var pelvis_seat = Vector3.Dot(rest[hips], depth);
+        // share one depth, the trunk's, the way a hand's posts share the plate: anchored on Hips so
+        // the pelvis panels stay a flat slab between the waist ring and the thighs. `[N28]`
         // The crotch hangs as far below the Hips joint as the hips are wide: its drop follows the
         // span between the two UpLeg joints across side. The hip bones are purely lateral, so that
         // span is the two bones' sum and its ratio to rest the mean of their two ratios -- one hip
@@ -788,8 +792,7 @@ public static class cage{
             rest = Vector3.Dot(rest[index["LeftUpLeg"]] - rest[index["RightUpLeg"]], side),
         } };
         int pelvis_post(string name, int[] anchor, float[] weight, Vector3 reach){
-            return post(name, anchor, weight, reach, depth, new[]{ hips },
-                pelvis_seat - pelvis_back + tune.pelvis_back / scale, pelvis_front - pelvis_seat + tune.pelvis_front / scale, hip_width);
+            return post(name, anchor, weight, reach, depth, new[]{ hips }, body_back, body_front, hip_width);
         }
         var drop = up * (tune.crotch_drop / scale);
         var f = tune.hip_out;

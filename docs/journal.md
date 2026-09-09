@@ -1148,3 +1148,34 @@ arm 링이 이음선 하나가 되어 쇄골을 따르게 된 지금, 삼각근 
 ### 남긴 일 (추가)
 - 탈출 최악값의 룰별 몫 — 룰 3만 끄고 돌려 보면 갈린다(`girth`를 비우는 스위치가 없으므로 임시 주입).
 - 손 스윕: 중수골 하한, 또는 분기 링의 여유가 중수골 길이를 따르게.
+
+---
+
+## 2026-09-09 (이어서) — 몸통은 옆에서 보면 상자다: `body front` / `body back`
+
+커밋: (이 항목). 씬은 별도로 — `rebuild cage` 뒤.
+
+### 요청
+Hips를 기준으로 하는 `body front`·`body back`을 정의해 사지와 머리를 뺀 모든 링과 기둥이 공유한다. arm 링 앞뒤, `neck mid`(v72·v73), 모든 spine 링, 양 hip과 `crotch`(v82·v83)가 옆에서 봤을 때 앞뒤 일직선.
+
+### 정의
+몸통 살 = Hips 서브트리 − (LeftUpLeg·RightUpLeg·LeftArm·RightArm·Head 서브트리) = 골반·척추·목·양 Shoulder. 그 `depth` 구간을 inflate하고 Hips 좌표를 뺀 것이 앞뒤 여유, 여기에 튠 `body front`/`body back`(초기 0). d 앵커는 전부 Hips.
+
+### 코드
+`recipe.body` 플래그 하나 — `measure`가 d 앵커를 Hips로, 네 코너 여유를 몸통 값으로 덮는다(arm 둘, spine). `neck mid`와 `pelvis_post`는 d 인자로 같은 값을 받는다. spine1·spine2와 그 mid, sternum은 절두체·교점이라 손대지 않고도 같은 선 위다. 골반 살 측정(`pelvis_*`)이 사라졌고, 튠 아홉(arm hi/lo front/back, neck front, spine front/back, pelvis front/back)이 둘로 줄었다. 슬라이더도 같이.
+
+### 대가 (눈으로 볼 것)
+- arm 링이 몸통만큼 깊어진다. 겨드랑이·승모근 코너가 가슴·엉덩이 선까지 나가고, 상완 판은 그 상자에서 elbow 링으로 좁아지는 쐐기다.
+- 허리·골반의 깊이가 가슴·엉덩이 최대치라 배 앞·허리 뒤가 넉넉히 뜬다 — `[N21]`의 옆구리처럼 잘록함은 MVC의 몫.
+- `neck mid`의 앞이 가슴 선까지 나가 V 바닥이 가슴 상자의 윗면 정중선이 된다. `[N17]`이 풀던 문제는 뿌리째 없어졌다.
+
+### 왜 지금인가
+깊이 복원(`girth_d`)이 몸통에 들어오기 전에 곱할 대상을 하나로 — 링마다 다른 깊이 아홉을 곱하면 곱한 뒤에도 서로 어긋나고 `[N17]` 같은 보정이 자리마다 생긴다. 하나면 driver도 하나다.
+
+### 검증
+`dotnet build` 에러 0, 경고 0. 재bake·포함·스윕은 돌리지 않았다. 씬의 튠 아홉이 사라지고 `body front`/`body back`이 0으로 시작하므로 `rebuild cage` 뒤 rest 포함이 0인지(inflate 5%만으로 가슴·엉덩이가 담기는지) 먼저 본다.
+
+### 남긴 일
+- `rebuild cage` → rest 포함 → 눈으로 위 대가 셋 → `export sweep data` → 스윕(1·2·4층, `--skip hand`).
+- 깊이 복원: 몸통은 `body` 하나에 `girth_d`를 적는 일이 됐다 — 무엇을 따를지(키? 어깨·고관절 너비?).
+- `neck mid`의 높이(Neck 관절) — 마지막 독립 정의. 교점으로 갈지 판단.
