@@ -115,6 +115,10 @@ public class cage_post{
                                             // The sternum is the armpits' line crossing the midline, and a
                                             // spine ring's midline post its own front and back edges'. `[N27]`
     public Vector3 between_axis;
+    public int[] hi_mean, lo_mean;  // placed vertices whose mean d coordinate the end takes once the sections
+                                    // are restored, so a post closing a rung stays on the corners it closes:
+                                    // the V's bottom and the sternum on the two arm rings' edges, each spine
+                                    // ring's post on its own, the crotch on the two hip posts. `[N29]`
 }
 
 // A correction applied once every ring and post is placed, because it reads one part of the cage
@@ -131,6 +135,28 @@ public class cage_gate{
     public Vector3 axis;
 }
 
+// A section whose depth is restored once the cage is placed. What the recipe deforms is the
+// silhouette -- the seam follows the clavicle, the torso's sides the hips and the armpits, a
+// limb's rings its root bone -- while the depth reaches stay what the rest measured, so a body
+// with wide shoulders would keep a rest-thick chest. The restore reads the section's width off
+// the placed cage and multiplies every depth reach by width over rest width, each reach from the
+// joint it was measured from: the ring formula's g_d, taken from the section's own width instead
+// of a declared span. The two sides may hang on different joints -- the toe ring's top on ToeBase
+// and its sole on the Foot -- which is why each has its own seat: a longer foot bone drops
+// ToeBase, and the top must follow it with its own reach while the sole stays level with the
+// heel. Each section stands alone: the trunk shares its depth at rest and parts wherever an edit
+// lands. See cage.md `[N29]`.
+[Serializable]
+public class cage_section{
+    public string name;         // as the design document calls it
+    public int[] hi, lo;        // the two silhouette edges as vertex groups: the width is the distance between their centers across d
+    public float rest_width;    // that distance at rest
+    public int[] front, back;   // the vertices whose depth reach is scaled: the front's past front_seat, the back's before back_seat
+    public int front_seat, back_seat;   // the joints those reaches are measured from -- the Hips for the trunk, a limb
+                                        // ring's own joint, ToeBase over the Foot for the toe ring and the tips
+    public Vector3 d;
+}
+
 [Serializable]
 public class cage_constants{
     // Joints, in parent-before-child order, for forward kinematics.
@@ -142,6 +168,7 @@ public class cage_constants{
     public cage_ring[] rings;
     public cage_post[] posts;       // the midline, then the hands, after the ring corners in the vertex order
     public int[] tris;              // indices into 4*rings.Length + 2*posts.Length vertices
+    public cage_section[] sections; // depth restored from width, in this order, once the rest is placed and before the gates
     public cage_gate[] gates;       // corrections, applied in this order once the rest is placed
 
     // Vertex pairs: the edges the topology tables declare, which tris alone cannot give back. Each
@@ -227,6 +254,7 @@ public static class cage{
         // Both read nothing but the joint centers, so neither waits on the other.
         var verts = ring_corners(k, jc).Concat(post_ends(k, jc)).ToArray();
         between(k, verts);
+        restore(k, verts, jc);
 
         // Then the gates, which read the placed cage against itself. Declaration order is their
         // priority: a later one moves vertices an earlier one may already have moved.
@@ -322,6 +350,48 @@ public static class cage{
             }
             cross(p.hi_between, post_hi);
             cross(p.lo_between, post_lo);
+        }
+    }
+
+    // A section's width as placed: the distance between its two silhouette edges' centers across d.
+    static float width(cage_section s, Vector3[] verts){
+        Vector3 center(int[] v){
+            return v.Aggregate(Vector3.zero, (a, i) => a + verts[i]) / v.Length;
+        }
+        var across = center(s.hi) - center(s.lo);
+        return (across - s.d * Vector3.Dot(across, s.d)).magnitude;
+    }
+
+    // Depth restored from width, once everything is placed and before the gates: each section's
+    // depth reaches, still what the rest measured, are multiplied by its width over its rest width,
+    // each from the joint it hangs on -- so depth over width is what it was at rest. Then every
+    // post closing a rung takes the mean depth of the corners it closes, so it moves with them.
+    // This touches depth alone and the gates up and side alone, so neither reads what the other
+    // moves. `[N29]`
+    static void restore(cage_constants k, Vector3[] verts, Vector3[] jc){
+        foreach(var s in k.sections){
+            var by = width(s, verts) / s.rest_width;
+            void scale(int[] at, int seat){
+                var from = Vector3.Dot(jc[seat], s.d);
+                foreach(var i in at){
+                    verts[i] += s.d * ((Vector3.Dot(verts[i], s.d) - from) * (by - 1f));
+                }
+            }
+            scale(s.front, s.front_seat);
+            scale(s.back, s.back_seat);
+        }
+
+        for(var i = 0; i < k.posts.Length; i++){
+            var p = k.posts[i];
+            void level(int[] of, int end){
+                if(of.Length == 0){
+                    return;
+                }
+                var v = k.rings.Length * 4 + i * 2 + end;
+                verts[v] += p.d * (of.Average(j => Vector3.Dot(verts[j], p.d)) - Vector3.Dot(verts[v], p.d));
+            }
+            level(p.hi_mean, post_hi);
+            level(p.lo_mean, post_lo);
         }
     }
 
@@ -729,7 +799,7 @@ public static class cage{
             posts.Add(new cage_post{
                 name = name, anchor = anchor, weight = weight, reach = reach,
                 d = d, d_lo_anchor = d_anchor, d_hi_anchor = d_anchor, d_lo = d_lo, d_hi = d_hi, girth = girth, girth_d = new cage_span[0],
-                hi_between = new int[0], lo_between = new int[0],
+                hi_between = new int[0], lo_between = new int[0], hi_mean = new int[0], lo_mean = new int[0],
             });
             return posts.Count - 1;
         }
@@ -821,10 +891,13 @@ public static class cage{
             };
         }
 
-        // One foot, past its ankle ring. The sole is level: the toe ring's bottom edge and the tips'
-        // lower ends sit at the height of the ankle ring's bottom -- the heel -- and hang on the
-        // Foot joint, so they follow the heel whatever the foot bone does; only their tops are read
-        // off the flesh. The toes end past ToeBase with no joint to stand on, so the tip is a
+        // One foot, past its ankle ring. Its heights are all the Foot joint's: the sole is level --
+        // the toe ring's bottom edge and the tips' lower ends sit at the height of the ankle ring's
+        // bottom, the heel -- and the tops, read off the flesh, hang on the same joint rather than
+        // on ToeBase. The foot bone points down as well as forward, so a longer one carries ToeBase
+        // toward the sole (it would reach it at x1.62); a top that followed it would squeeze the
+        // section against the level sole, while off the Foot the foot only lengthens. `[N14]` `[N30]`
+        // The toes end past ToeBase with no joint to stand on, so the tip is a
         // fingertip's ring: a post on each side of the toes on a virtual end bone -- (1+f, -f) of
         // ToeBase and Foot, f the toes' reach beyond ToeBase as a share of the foot bone -- so
         // lengthening the foot carries the toes out with it. Across, the tips follow the hip bone
@@ -834,8 +907,12 @@ public static class cage{
             var ball = index[prefix + "ToeBase"];
             var hip_bone = bone(prefix + "UpLeg");
             var floor = Vector3.Dot(rest[joint] - rest_corners[ankle * 4 + lo_back], up);
+            var below = Vector3.Dot(rest[joint] - rest[ball], up);    // how far ToeBase sits under the Foot joint
             rings[toe].d_lo_anchor = new[]{ joint };
             rings[toe].hi_back = rings[toe].lo_back = floor;
+            rings[toe].d_hi_anchor = new[]{ joint };
+            rings[toe].hi_front -= below;
+            rings[toe].lo_front -= below;
 
             var meat = subtree(ball, parent).SelectMany(j => flesh[j]).ToArray();
             var over = meat.Max(p => Vector3.Dot(p - rest[ball], dir[ball])) * (1f + margin);
@@ -849,8 +926,8 @@ public static class cage{
             int add(Vector3 reach){
                 posts.Add(new cage_post{
                     name = $"{tag} tip", anchor = anchor, weight = weight, reach = reach, d = up,
-                    d_lo_anchor = new[]{ joint }, d_hi_anchor = new[]{ ball }, d_lo = floor, d_hi = top - Vector3.Dot(rest[ball], up),
-                    girth = hip_bone, girth_d = new cage_span[0], hi_between = new int[0], lo_between = new int[0],
+                    d_lo_anchor = new[]{ joint }, d_hi_anchor = new[]{ joint }, d_lo = floor, d_hi = top - Vector3.Dot(rest[joint], up),
+                    girth = hip_bone, girth_d = new cage_span[0], hi_between = new int[0], lo_between = new int[0], hi_mean = new int[0], lo_mean = new int[0],
                 });
                 return posts.Count - 1;
             }
@@ -888,7 +965,7 @@ public static class cage{
                 posts.Add(new cage_post{
                     name = name, anchor = anchor, weight = weight, reach = reach,
                     d = d, d_lo_anchor = new[]{ wrist }, d_hi_anchor = new[]{ wrist }, d_lo = seat - plate_lo, d_hi = plate_hi - seat,
-                    girth = girth, girth_d = thick, hi_between = new int[0], lo_between = new int[0],
+                    girth = girth, girth_d = thick, hi_between = new int[0], lo_between = new int[0], hi_mean = new int[0], lo_mean = new int[0],
                 });
                 return posts.Count - 1;
             }
@@ -1008,6 +1085,70 @@ public static class cage{
         hand("LeftHand", "L", wrist_hi, side, true);
         hand("RightHand", "R", wrist_lo, -side, false);
 
+        // The depth is restored section by section once the cage is placed (restore). The recipe
+        // deformed the silhouette -- the seam by the clavicle, the torso's sides by the hips and the
+        // armpits, a limb's rings by its root bone -- and left every depth reach what the rest
+        // measured, so each section multiplies its reaches by its own width ratio. Each stands alone:
+        // the trunk's shared box holds at rest and parts where an edit lands. A reach scales from
+        // the joint it hangs on: the trunk's from the Hips, the box's own seat, whatever ring they
+        // are on; a limb ring's from its own depth anchors, which is the Foot for all three stations
+        // of a foot `[N30]`, so the heel corners, the toe ring's sole and the tips' lower ends drop
+        // as one level plane. The wrist ring and the hand are not restored: their three axes are
+        // already declared `[N25]`. The rest width is read off the rest cage placed without any
+        // restore. `[N29]`
+        var rest_placed = control_points(new cage_constants{ rings = rings, posts = posts.ToArray(), sections = new cage_section[0], gates = new cage_gate[0] }, rest);
+        cage_section section(string name, int[] hi, int[] lo, int[] front, int[] back, int front_seat, int back_seat, Vector3 d){
+            var s = new cage_section{ name = name, hi = hi, lo = lo, front = front, back = back, front_seat = front_seat, back_seat = back_seat, d = d };
+            s.rest_width = width(s, rest_placed);
+            return s;
+        }
+        cage_section ring_section(int slot, int front_seat, int back_seat){
+            int[] corners(params int[] c){
+                return c.Select(x => slot * 4 + x).ToArray();
+            }
+            return section(rings[slot].name, corners(hi_front, hi_back), corners(lo_front, lo_back), corners(hi_front, lo_front), corners(hi_back, lo_back), front_seat, back_seat, rings[slot].d);
+        }
+        cage_section limb_section(int slot){
+            return ring_section(slot, rings[slot].d_hi_anchor.Single(), rings[slot].d_lo_anchor.Single());
+        }
+        // Two sections that are post pairs: the tilted hip ring, an outer hip post beside the crotch,
+        // of which only the hip post scales -- the crotch takes the mean of both sides below -- and
+        // the toe cap, the two tip posts, both of which scale off the toe ring's two joints.
+        cage_section hip_section(edge e){
+            var p = at[(hip, e)];
+            var (front, back) = pair(p);
+            var crotch = pair(at[(hip, edge.mid)]);
+            return section(posts[p].name, new[]{ front, back }, new[]{ crotch.hi, crotch.lo }, new[]{ front }, new[]{ back }, hips, hips, posts[p].d);
+        }
+        cage_section tip_section(int station){
+            var p = at[(station, edge.hi)];
+            var (hi_top, hi_sole) = pair(p);
+            var (lo_top, lo_sole) = pair(at[(station, edge.lo)]);
+            return section(posts[p].name, new[]{ hi_top, hi_sole }, new[]{ lo_top, lo_sole }, new[]{ hi_top, lo_top }, new[]{ hi_sole, lo_sole },
+                posts[p].d_hi_anchor.Single(), posts[p].d_lo_anchor.Single(), posts[p].d);
+        }
+        var sections = new[]{ spine, spine1, spine2, arm_hi, arm_lo }.Select(slot => ring_section(slot, hips, hips))
+            .Concat(new[]{ edge.hi, edge.lo }.Select(hip_section))
+            .Concat(new[]{ elbow_hi, elbow_lo, knee_hi, knee_lo, ankle_hi, ankle_lo, toe_hi, toe_lo }.Select(limb_section))
+            .Concat(new[]{ tip_hi, tip_lo }.Select(tip_section))
+            .ToArray();
+
+        // And every post closing a rung on the trunk takes the depth of the corners it closes, so it
+        // follows their restored sections: the V's bottom and the sternum the two arm rings' top and
+        // bottom edges, each spine ring's midline post its own edges, the crotch the two hip posts.
+        // A post between two sections belongs to both, hence the mean; at rest every one of them
+        // already stands there. `[N29]`
+        void mean(int p, int[] front, int[] back){
+            posts[p].hi_mean = front;
+            posts[p].lo_mean = back;
+        }
+        mean(at[(neck, edge.mid)], new[]{ arm_hi * 4 + hi_front, arm_lo * 4 + hi_front }, new[]{ arm_hi * 4 + hi_back, arm_lo * 4 + hi_back });
+        mean(at[(sternum, edge.mid)], new[]{ arm_hi * 4 + lo_front, arm_lo * 4 + lo_front }, new[]{ arm_hi * 4 + lo_back, arm_lo * 4 + lo_back });
+        foreach(var slot in new[]{ spine, spine1, spine2 }){
+            mean(at[(slot, edge.mid)], new[]{ slot * 4 + hi_front, slot * 4 + lo_front }, new[]{ slot * 4 + hi_back, slot * 4 + lo_back });
+        }
+        mean(at[(hip, edge.mid)], new[]{ pair(at[(hip, edge.hi)]).hi, pair(at[(hip, edge.lo)]).hi }, new[]{ pair(at[(hip, edge.hi)]).lo, pair(at[(hip, edge.lo)]).lo });
+
         // The head sits on the shoulders. Shorten the neck and the parting plane sinks until it
         // passes the arm rings' top edges:
         // the seam crosses the jaw and the neck panels fold through the head. Fitting the two ever
@@ -1095,6 +1236,7 @@ public static class cage{
             joint_rest_len = rest_len,
             rings = rings,
             posts = posts.ToArray(),
+            sections = sections,
         };
         var rest_points = control_points(k, rest);
         (k.tris, k.grid) = topology(plates, walls, rest_points, side);
