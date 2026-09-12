@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>bone-cage — demo</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #0f1115; color: #e6e8eb;
+  }
+  @media (prefers-color-scheme: light) { body { background: #f6f7f9; color: #1a1c20; } }
+  main { width: min(680px, 90vw); padding: 2rem 0; }
+  h1 { font-size: 1.9rem; margin: 0 0 .25rem; letter-spacing: -0.01em; }
+  p.lead { margin: 0 0 1.5rem; opacity: .75; }
+  ul { list-style: none; padding: 0; margin: 0; display: grid; gap: .75rem; }
+  a.card {
+    display: block; padding: 1rem 1.15rem; border-radius: 10px; text-decoration: none;
+    border: 1px solid rgba(128,128,128,.28); color: inherit;
+    background: rgba(128,128,128,.06); transition: border-color .15s, transform .05s;
+  }
+  a.card:hover { border-color: #4c8dff; }
+  a.card:active { transform: translateY(1px); }
+  .t { font-weight: 600; }
+  .d { opacity: .7; font-size: .9rem; }
+  footer { margin-top: 1.75rem; font-size: .85rem; opacity: .6; }
+  footer a { color: #4c8dff; }
+</style>
+</head>
+<body>
+<main>
+  <h1>bone-cage</h1>
+  <p class="lead">Edit a skeleton's bone lengths and the body follows — through a cage the bones build, not through skinning.</p>
+  <ul>
+    <li><a class="card" href="unity/">
+      <div class="t">Unity (URP · WebGL) →</div>
+      <div class="d">Body and per-bone sliders, the cage wire, a few motions on top. Desktop browser; downloads about 50 MB, most of it the baked mapping.</div>
+    </a></li>
+  </ul>
+  <footer>Source &amp; docs: <a href="https://github.com/wonhotoss/bone-cage">github.com/wonhotoss/bone-cage</a></footer>
+</main>
+</body>
+</html>
