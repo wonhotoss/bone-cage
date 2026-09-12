@@ -91,6 +91,12 @@ static class sweep{
         Console.WriteLine($"cage: {d.k.rings.Length * 4 + d.k.posts.Length * 2} control points, {d.k.tris.Length / 3} triangles, "
             + $"{d.pts.Length} mesh vertices, {d.bone.Length} editable bones");
 
+        var one = arg(args, "--case");
+        if(one != null){
+            inspect(d, build(d, tiers, count, seed, skip).Single(c => c.name == one));
+            return 0;
+        }
+
         var clock = System.Diagnostics.Stopwatch.StartNew();
         var rest_cage = cage.points(new Dictionary<string, float>(), d.k);
         var bound = cage_deform.bind(cage_coords.mvc, d.pts, rest_cage, d.k.tris);
@@ -270,6 +276,34 @@ static class sweep{
 
     static float rest_length(rest_data d, string joint){
         return d.k.joint_rest_len[Array.IndexOf(d.k.joint_name, joint)];
+    }
+
+    // One case spelled out, for reading a self-collision the report only names by group: every
+    // colliding triangle with its vertices -- number, name group, position -- and the landmarks
+    // around the two open maps (the head box, the arm rings' top edges, the V's bottom, the
+    // sternum, the feet). Positions in cm along side / up / depth, read off the spine ring's frame.
+    static void inspect(rest_data d, length_case c){
+        var lengths = Enumerable.Range(0, d.bone.Length)
+            .ToDictionary(b => d.joint[b], b => rest_length(d, d.joint[b]) * c.ratio[b]);
+        var live = cage.points(lengths, d.k);
+        var hit = cage.self_overlaps(lengths, d.k);
+        var frame = d.k.rings.Single(r => r.name == "spine");
+
+        string at(int v){
+            var p = live[v];
+            return $"v{v} {d.group[v]} ({Vector3.Dot(p, frame.s) * 10000:0.0}, {Vector3.Dot(p, frame.n) * 10000:0.0}, {Vector3.Dot(p, frame.d) * 10000:0.0})";
+        }
+
+        Console.WriteLine($"{c.name}: {hit.Count} triangles in self-collision (side, up, depth in cm)");
+        foreach(var t in hit.OrderBy(t => t)){
+            Console.WriteLine($"  tri {t}: " + string.Join("  |  ", Enumerable.Range(0, 3).Select(e => at(d.k.tris[t * 3 + e]))));
+        }
+
+        Console.WriteLine("landmarks:");
+        foreach(var name in new[]{ "crown", "head", "L arm", "R arm", "crown mid", "head mid", "neck mid", "sternum mid", "L ankle", "L toe", "L tip" }){
+            var vs = Enumerable.Range(0, d.group.Length).Where(v => d.group[v] == name);
+            Console.WriteLine($"  {name}: " + string.Join("  |  ", vs.Select(at)));
+        }
     }
 
     // How much of a ring's own widening the mesh inside it actually takes. The thickness driver

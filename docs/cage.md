@@ -366,6 +366,12 @@ rest에서는 머리가 이미 어깨 위에 있고, arm 링 hi 변도 머리 �
 
 **전달비 probe** — `--probe k`는 스윕 대신 다른 것을 묻는다: **선언한 단면이 살에 얼마나 도착하는가.** 뼈를 전부 rest에 두고 한 구간의 단면 여유를 ×k 한 케이지로 rest 메시를 사상한 뒤, bake가 쓰는 그 측정 창에서 살의 폭·깊이를 다시 잰다. `전달비 = (메시 비 − 1) / (케이지 비 − 1)`이고 1.00이면 선언이 그대로 도착한 것이다. 두께 driver의 값을 정하려면 이 비를 먼저 알아야 한다(§9). **복원(§6) 뒤로는** probe가 ×k 한 `front`·`back` 위에 복원이 폭 비 k를 한 번 더 곱한다 — 폭이 자기 것인 링(arm·elbow·knee·toe)의 깊이 행이 ~2.1로 읽히고(측정 2026-09-12, ×1.2: 2.01~2.07), spine은 폭 비 1이라 probe 값 그대로(0.93), spine1·2는 교점이라 0. 폭 행(0.82~0.93)은 그대로 유효하다. 복원의 도착률을 재려면 probe가 복원 대상 링에서는 **폭만** ×k 해야 한다 — 도구 수정은 남긴 일 `[N29]`.
 
+**케이스 검사** — `--case "<이름>"`(`results.csv`의 case 열 그대로, `--tiers`·`--skip`은 그 케이스가 든 층으로)은 한 케이스의 자기겹침 삼각형을 정점 번호·이름·위치(cm, spine 링 프레임의 side / up / depth)로 풀어 쓰고, 열린 지도 주변의 랜드마크(crown·head·L/R arm·정중선 기둥·왼발)를 함께 찍는다. 보고서는 그룹 이름까지만 말하므로 기전을 읽을 때 쓴다(2026-09-12, 지도 G).
+
+```
+dotnet run -c Release --project tools/cage_sweep -- --tiers 4 --skip hand --case "torso=0.7 arms=0.85 legs=1.4 left=1 right=1.1"
+```
+
 ```
 Unity 인스펙터 [export sweep data]        # 또는 -executeMethod mapping_tester.export_headless
 dotnet run -c Release --project tools/cage_sweep
