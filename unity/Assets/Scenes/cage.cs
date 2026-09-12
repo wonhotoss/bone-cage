@@ -1093,9 +1093,10 @@ public static class cage{
         // the joint it hangs on: the trunk's from the Hips, the box's own seat, whatever ring they
         // are on; a limb ring's from its own depth anchors, which is the Foot for all three stations
         // of a foot `[N30]`, so the heel corners, the toe ring's sole and the tips' lower ends drop
-        // as one level plane. The wrist ring and the hand are not restored: their three axes are
-        // already declared `[N25]`. The rest width is read off the rest cage placed without any
-        // restore. `[N29]`
+        // as one level plane; the head's two rings from the Head joint, so the head is as deep as
+        // the stature makes it wide. The wrist ring and the hand are not restored: their three
+        // axes are already declared `[N25]`. The rest width is read off the rest cage placed
+        // without any restore. `[N29]`
         var rest_placed = control_points(new cage_constants{ rings = rings, posts = posts.ToArray(), sections = new cage_section[0], gates = new cage_gate[0] }, rest);
         cage_section section(string name, int[] hi, int[] lo, int[] front, int[] back, int front_seat, int back_seat, Vector3 d){
             var s = new cage_section{ name = name, hi = hi, lo = lo, front = front, back = back, front_seat = front_seat, back_seat = back_seat, d = d };
@@ -1108,7 +1109,8 @@ public static class cage{
             }
             return section(rings[slot].name, corners(hi_front, hi_back), corners(lo_front, lo_back), corners(hi_front, lo_front), corners(hi_back, lo_back), front_seat, back_seat, rings[slot].d);
         }
-        cage_section limb_section(int slot){
+        // A ring off its own joint: a limb's, or the head's two, whose width is the stature's `[N23]`.
+        cage_section joint_section(int slot){
             return ring_section(slot, rings[slot].d_hi_anchor.Single(), rings[slot].d_lo_anchor.Single());
         }
         // Two sections that are post pairs: the tilted hip ring, an outer hip post beside the crotch,
@@ -1129,22 +1131,23 @@ public static class cage{
         }
         var sections = new[]{ spine, spine1, spine2, arm_hi, arm_lo }.Select(slot => ring_section(slot, hips, hips))
             .Concat(new[]{ edge.hi, edge.lo }.Select(hip_section))
-            .Concat(new[]{ elbow_hi, elbow_lo, knee_hi, knee_lo, ankle_hi, ankle_lo, toe_hi, toe_lo }.Select(limb_section))
+            .Concat(new[]{ elbow_hi, elbow_lo, knee_hi, knee_lo, ankle_hi, ankle_lo, toe_hi, toe_lo }.Select(joint_section))
             .Concat(new[]{ tip_hi, tip_lo }.Select(tip_section))
+            .Concat(new[]{ crown, head }.Select(joint_section))
             .ToArray();
 
-        // And every post closing a rung on the trunk takes the depth of the corners it closes, so it
-        // follows their restored sections: the V's bottom and the sternum the two arm rings' top and
-        // bottom edges, each spine ring's midline post its own edges, the crotch the two hip posts.
-        // A post between two sections belongs to both, hence the mean; at rest every one of them
-        // already stands there. `[N29]`
+        // And every post closing a rung takes the depth of the corners it closes, so it follows
+        // their restored sections: the V's bottom and the sternum the two arm rings' top and bottom
+        // edges, each midline post on a ring -- the crown's, the head's, the three spine rings' --
+        // its own edges, the crotch the two hip posts. A post between two sections belongs to both,
+        // hence the mean; at rest every one of them already stands there. `[N29]`
         void mean(int p, int[] front, int[] back){
             posts[p].hi_mean = front;
             posts[p].lo_mean = back;
         }
         mean(at[(neck, edge.mid)], new[]{ arm_hi * 4 + hi_front, arm_lo * 4 + hi_front }, new[]{ arm_hi * 4 + hi_back, arm_lo * 4 + hi_back });
         mean(at[(sternum, edge.mid)], new[]{ arm_hi * 4 + lo_front, arm_lo * 4 + lo_front }, new[]{ arm_hi * 4 + lo_back, arm_lo * 4 + lo_back });
-        foreach(var slot in new[]{ spine, spine1, spine2 }){
+        foreach(var slot in new[]{ crown, head, spine, spine1, spine2 }){
             mean(at[(slot, edge.mid)], new[]{ slot * 4 + hi_front, slot * 4 + lo_front }, new[]{ slot * 4 + hi_back, slot * 4 + lo_back });
         }
         mean(at[(hip, edge.mid)], new[]{ pair(at[(hip, edge.hi)]).hi, pair(at[(hip, edge.lo)]).hi }, new[]{ pair(at[(hip, edge.hi)]).lo, pair(at[(hip, edge.lo)]).lo });
