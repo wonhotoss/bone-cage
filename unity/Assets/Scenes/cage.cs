@@ -214,6 +214,10 @@ public class cage_tune{
                                              // before the gate stops the whole ring; negative demands a gap
                                              // instead, and here it must -- stopped flush both rings stand
                                              // on the midline and the panels still graze `[N20]`
+    public float armpit_gate_slack = -0.01f; // how far below the spine2 ring's corners an arm ring's bottom
+                                             // edge may come before the gate stops the whole ring coming
+                                             // down; negative demands a band of that height between the
+                                             // armpit and the frustum ring under it `[N20]`
     public float crown_front = 0f;  // depth reach of the crown ring: the chest and belly (front) and the
     public float crown_back = 0f;   // shoulder blades (back) sit under the torso panel these two rings span
     public float crotch_drop = 0.15f;   // how far below the Hips joint the crotch post sits, along up
@@ -1196,6 +1200,26 @@ public static class cage{
         // its tilt does not enter; the two gates move along side and the head gate along up, so
         // neither reads what the other moves and their order is immaterial. At rest the edge clears
         // the head by several centimetres and nothing moves. `[N20]`
+        // And the armpit stays above the frustum. Lower the shoulder base and the upper thorax and
+        // lengthen the clavicle, and the arm ring's bottom edge -- the armpit, half the seam below
+        // the Arm joint -- comes down onto the Spine2 joint: the frustum's crossing then clamps the
+        // spine2 ring onto the armpit corners, and the band between them, flat and harmless while
+        // both shared the trunk's depth, folds into a sliver once the restore gives each its own
+        // depth `[N29]`. What is read is the bottom edge; what moves is the whole ring, as beside the
+        // head, so the seam keeps its tilt and the shoulder merely stops coming down. The floor is
+        // the spine2 ring's corners on that side -- in the clamped regime the armpit's own old
+        // position, so the gate opens exactly the slack -- and the slack is negative: a band of
+        // some height is what is asked for. Runs before head above arms, which reads the shoulders
+        // this moves. `[N20]`
+        cage_gate arm_above_spine2(string name, int arm, int[] corners){
+            return new cage_gate{
+                name = name, moved = Enumerable.Range(arm * 4, 4).ToArray(),
+                probe = new[]{ lo_front, lo_back }.Select(c => arm * 4 + c).ToArray(),
+                floor = corners.Select(c => spine2 * 4 + c).ToArray(),
+                slack = tune.armpit_gate_slack / scale, axis = up,
+            };
+        }
+
         cage_gate arm_beside_head(string name, int arm, Vector3 axis){
             return new cage_gate{
                 name = name, moved = Enumerable.Range(arm * 4, 4).ToArray(),
@@ -1241,6 +1265,8 @@ public static class cage{
         var k = new cage_constants{
             clearance = clearance / scale,
             gates = new[]{
+                arm_above_spine2("L arm above spine2", arm_hi, new[]{ hi_front, hi_back }),
+                arm_above_spine2("R arm above spine2", arm_lo, new[]{ lo_back, lo_front }),
                 new cage_gate{ name = "head above arms", moved = head_box, probe = head_ring, floor = shoulder_tops, slack = tune.head_gate_slack / scale, axis = up },
                 arm_beside_head("L arm beside head", arm_hi, side),
                 arm_beside_head("R arm beside head", arm_lo, -side),
