@@ -1,0 +1,31 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+    <Style src="demo.uss"/>
+    <ui:VisualElement name="panel" class="panel">
+        <ui:Label text="bone-cage" class="title"/>
+        <ui:Label text="Bone lengths drive a cage; the cage carries the body." class="lead"/>
+        <ui:ScrollView name="scroll" class="scroll" mode="Vertical">
+            <ui:Foldout name="body_section" text="Body" class="section">
+                <ui:Slider name="torso" label="torso" low-value="0.5" high-value="1.5" value="1" show-input-field="true"/>
+                <ui:Slider name="arms" label="arms" low-value="0.5" high-value="1.5" value="1" show-input-field="true"/>
+                <ui:Slider name="legs" label="legs" low-value="0.5" high-value="1.5" value="1" show-input-field="true"/>
+                <ui:Slider name="left" label="left" low-value="0.5" high-value="1.5" value="1" show-input-field="true"/>
+                <ui:Slider name="right" label="right" low-value="0.5" high-value="1.5" value="1" show-input-field="true"/>
+                <ui:Button name="reset" text="reset lengths" class="reset"/>
+            </ui:Foldout>
+            <ui:Foldout name="bones_section" text="Bones" class="section" value="false">
+                <ui:VisualElement name="bones"/>
+            </ui:Foldout>
+            <ui:Foldout name="cage_section" text="Cage" class="section">
+                <ui:Toggle name="show_cage" label="wire" value="true"/>
+                <ui:Toggle name="all_edges" label="all edges"/>
+            </ui:Foldout>
+            <ui:Foldout name="motion_section" text="Motion" class="section">
+                <ui:DropdownField name="motion" label="motion"/>
+            </ui:Foldout>
+            <ui:Foldout name="view_section" text="View" class="section">
+                <ui:Toggle name="rest_body" label="rest body" value="true"/>
+            </ui:Foldout>
+        </ui:ScrollView>
+        <ui:Label text="drag: orbit · right drag: pan · wheel: zoom" class="hint"/>
+    </ui:VisualElement>
+</ui:UXML>

@@ -1,0 +1,111 @@
+.panel {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    width: 320px;
+    max-height: 96%; /* cap to the viewport; the ScrollView takes the overflow */
+    padding: 10px;
+    color: rgb(220, 220, 220);
+    background-color: rgba(20, 20, 20, 0.85);
+    border-radius: 6px;
+}
+
+.scroll {
+    flex-grow: 1;
+}
+
+.title {
+    color: rgb(240, 240, 240);
+    font-size: 16px;
+    -unity-font-style: bold;
+}
+
+.lead {
+    margin-bottom: 8px;
+    font-size: 11px;
+    color: rgb(170, 170, 170);
+    white-space: normal;
+}
+
+.hint {
+    margin-top: 6px;
+    font-size: 11px;
+    color: rgb(150, 150, 150);
+}
+
+.section {
+    margin-bottom: 8px;
+}
+
+.unity-foldout__text {
+    color: rgb(230, 230, 230);
+    font-size: 13px;
+    -unity-font-style: bold;
+}
+
+/* Collapse arrow: tint so it reads on the dark panel. */
+.unity-foldout__checkmark {
+    -unity-background-image-tint-color: rgb(220, 220, 220);
+}
+
+.unity-foldout__content {
+    margin-left: 8px;
+}
+
+/* A nested foldout (a hand) is a plain row among the bone sliders. */
+.unity-foldout .unity-foldout .unity-foldout__text {
+    font-size: 12px;
+    -unity-font-style: normal;
+}
+
+.unity-base-field__label {
+    min-width: 96px;
+    font-size: 12px;
+    color: rgb(200, 200, 200);
+}
+
+.unity-base-slider__input {
+    flex-grow: 1;
+}
+
+/* Editable inputs default to light-on-white, unreadable on the dark panel. */
+.unity-base-field__input {
+    background-color: rgb(45, 45, 45);
+    border-color: rgb(70, 70, 70);
+    color: rgb(230, 230, 230);
+}
+
+.unity-base-text-field__input {
+    min-width: 44px;
+    font-size: 11px;
+}
+
+/* Runtime buttons are light-gray with inherited white text: dark button, light text. */
+.unity-button {
+    background-color: rgb(60, 60, 60);
+    border-color: rgb(90, 90, 90);
+    color: rgb(230, 230, 230);
+}
+
+.unity-button:hover {
+    background-color: rgb(78, 78, 78);
+}
+
+.unity-button:active {
+    background-color: rgb(48, 48, 48);
+}
+
+.reset {
+    height: 24px;
+    margin-top: 4px;
+}
+
+/* The dropdown popup inherits the runtime theme's light list; keep its face dark like the fields. */
+.unity-base-popup-field__input {
+    background-color: rgb(45, 45, 45);
+    border-color: rgb(70, 70, 70);
+}
+
+.unity-base-popup-field__text {
+    color: rgb(230, 230, 230);
+}
