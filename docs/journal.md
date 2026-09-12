@@ -1392,3 +1392,35 @@ F는 그대로 2건(고관절 1.5 + 발 뼈 0.5). 탈출은 자리까지 같다 
 - **G′**: `neck mid` 앞끝의 깊이 규칙(평균 → 뒤쪽) 또는 gate.
 - 둘을 닫은 뒤 3층 재실행. 3층은 이후 룰마다 같이 돌린다(30분).
 - 나머지는 앞 항목 그대로.
+
+---
+
+## 2026-09-13 — H는 다섯째 보정으로 닫혔다: 겨드랑이는 절두체 위에 있다
+
+커밋: (이 항목과 함께 — cage, docs). 씬은 아직 — 새 gate로 `rebuild cage`가 필요하고 `armpit gate slack` 슬라이더가 생겼다.
+
+### 요청
+사용자가 H를 에디터에서 재현했다: 어깨 밑동과 upper thorax를 낮추고 쇄골을 늘이면 arm 링 하단(겨드랑이)이 spine2 링까지 내려와 겹친다. arm lo가 spine2를 넘어 내려오지 못하게 하는 gate를 제안.
+
+### 설계 — `L/R arm above spine2` (§6b 다섯째 보정, `[N20]`)
+`arm beside head`와 같은 꼴: 올리는 것 = 그쪽 arm 링 전체(이음선 기울기 유지, elbow 제자리), 재는 곳 = 그 링의 lo 변(겨드랑이 두 코너), 바닥 = spine2 링의 그쪽 코너 둘, 축 `up`, 여유 음수(튠 `armpit gate slack`, 초기 −0.01). 절두체가 clamp된 상태에서는 spine2 코너 = 겨드랑이의 옛 자리라 `lift = |여유|` — 여유가 곧 벌어지는 띠의 높이다. `head above arms`가 어깨를 바닥으로 읽으므로 그 **앞**에 둔다. spine2의 코너는 옮기지 않는다(걸침이 지난 뒤라 옛 자리에 남고, 그것이 띠의 아랫변). rest: 겨드랑이(up 40.6)는 Spine2(≈30.1) 위 10.5 cm → no-op. 선언 여덟(거울쌍 셋 + 둘), rest 항등 유지.
+
+### 검증 (export 사본의 `gates`에 같은 gate 둘을 JSON으로 심어 잼)
+- `random#2459`(H 최악, 20 삼각형) → **0**. arm 링이 1 cm 들려 lo 변 26.0 → 27.0.
+- 1·2·4층 2,321: 실패 0, 탈출 270 / 11 / 88 / 158 — 이전과 동일, 회귀 없음.
+- **3층 20,000: 414 → 98.** spine1/spine2/elbow 무리(H) 316 → **0**. 남은 98은 전부 G 계열; 탈출 12,719 / 21 / 85 / 270으로 변동 없음.
+- Spine1까지 겨드랑이를 넘어 spine1 = spine2가 겹치는 경우는 3층에 나오지 않았다.
+- `dotnet build` 오류 0(Unity·sweep). 에디터 재bake·눈 확인은 아직.
+
+### 남은 98 — 두 접힘
+- **G′ 깊이 비대칭 84**: 쇄골 0.5~1.5 비대칭에서 `neck mid`(두 arm 링 앞의 평균)가 머리 앞면을 가로지른다(전 항목). 여유로는 안 닫힌다.
+- **V 바닥 14** (`random#1035` 13 삼각형, chest 0.52 · 쇄골 R 0.55): Neck 관절이 겨드랑이 선까지 내려와 `neck mid`(47.9)가 `sternum`(48.0)과 같은 높이 — V의 높이가 0이 되어 목 판(`arm+head+neck mid`)과 몸통 꼭대기 가로대(`arm+spine2 mid+sternum`)가 접힌다. §9 V넥 (3)이 예고한 `neck mid` gate(올리는 것 `neck mid` 두 끝, 바닥 L·R arm hi 변, 여유 = rest 차)의 자리다. 이쪽은 gate로 닫힌다.
+
+### 반영
+코드: `cage_tune.armpit_gate_slack`, `arm_above_spine2(...)`, gates 맨 앞 둘, tester 슬라이더. 문서: §6b 행, §7 슬라이더, `[N20]` 다섯째 보정, §6b rest 문단(다섯 보정·선언 여덟·겨드랑이 10.5 cm), §9 지도 H 닫음·G′ 14건 갈라 적음·이력 표.
+
+### 남긴 일
+- 씬: `rebuild cage` → 에디터에서 H 재현 조합으로 gate 확인, `armpit gate slack` 값 → `export sweep data` → 스윕으로 확정.
+- **V 바닥 gate**(`neck mid above arms`, V넥 (3)) — 14건.
+- **G′ 깊이 비대칭** — `neck mid` 앞끝 규칙 또는 V–머리 앞면 gate — 84건.
+- 나머지는 앞 항목 그대로.
