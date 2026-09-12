@@ -200,9 +200,11 @@ public class cage_tune{
     public float head_tilt = 25f;       // degrees the head ring's plane leans forward about the side axis, chin down
     public float head_offset = 0.023f;  // how far above the Head joint that plane sits, along its own normal
     public float head_front = 0f, head_back = 0f;   // depth reach of the head ring: chin and occiput
-    public float head_gate_slack = 0.038f;  // how far the head ring's lowest corner may sink below the
+    public float head_gate_slack = 0.01f;   // how far the head ring's lowest corner may sink below the
                                             // arm rings' top edges before the gate lifts the head off
-                                            // them: all of it, and the neck can hardly shorten `[N20]`
+                                            // them. Was 0.038: once the head deepens with the stature and
+                                            // the arm rings thin with the clavicle, the neck panel folds
+                                            // 1.5 cm in, so the slack came down to 1 cm `[N20]`
     public float arm_gate_slack = 0f;   // how far inside the head's silhouette an arm ring's top edge may
                                         // come before the gate stops the whole ring coming in `[N20]`
     public float spine_gate_slack = -0.005f;  // how far past the hips the spine ring's bottom may sink
