@@ -302,6 +302,13 @@ public static class cage{
         return jc;
     }
 
+    // Nearest signed unit axis.
+    public static Vector3 cardinal(Vector3 v){
+        var axes = new[]{ Vector3.right, Vector3.up, Vector3.forward };
+        var a = axes.OrderByDescending(x => Mathf.Abs(Vector3.Dot(v, x))).First();
+        return a * Mathf.Sign(Vector3.Dot(v, a));
+    }
+
     // Control points that lie between two placed control points. This is the one place a control
     // point reads another during placement, and it runs one way, in three stages that each read
     // only what came before: edges (the spine ring's sides, off the hip posts and the armpits),
@@ -1295,13 +1302,6 @@ public static class cage{
         return k;
     }
 
-    // Nearest signed unit axis.
-    static Vector3 cardinal(Vector3 v){
-        var axes = new[]{ Vector3.right, Vector3.up, Vector3.forward };
-        var a = axes.OrderByDescending(x => Mathf.Abs(Vector3.Dot(v, x))).First();
-        return a * Mathf.Sign(Vector3.Dot(v, a));
-    }
-
     static IEnumerable<int> ancestors(int j, int[] parent){
         for(var c = j; c >= 0; c = parent[c]){
             yield return c;
@@ -1551,6 +1551,7 @@ public static class cage{
         }
         return hit.ToList();
     }
+#endif
 
     // Debug view: the edges this document itself declares -- every ring, every post, and the grid
     // the topology tables lay between them (cage_constants.grid). A ring is a rectangle over four
@@ -1587,6 +1588,7 @@ public static class cage{
             .Select(e => (a: Mathf.Min(e.Item1, e.Item2), b: Mathf.Max(e.Item1, e.Item2))).Distinct();
     }
 
+#if UNITY_EDITOR
     // Debug view: the vertices behind each name the constants carry, ring corners and post ends
     // alike. The two posts of a finger ring share a name, so a finger ring reads as one group too.
     public static IEnumerable<(string name, int[] verts)> named(cage_constants k){

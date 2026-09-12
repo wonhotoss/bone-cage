@@ -102,6 +102,15 @@ static class sweep{
         var bound = cage_deform.bind(cage_coords.mvc, d.pts, rest_cage, d.k.tris);
         Console.WriteLine($"bound the rest mesh to the rest cage through {cage_coords.mvc} in {clock.Elapsed.TotalSeconds:0.0} s");
 
+        // The demo's rest side from the same export -- the constants as the editor wrote them and the
+        // bind just solved: what mapping_tester's "export demo bake" writes, without opening Unity.
+        var bake = arg(args, "--bake");
+        if(bake != null){
+            cage_bake.write(File.Create(bake), File.ReadAllText(Path.Combine(data, "constants.json")), bound);
+            Console.WriteLine($"demo bake written to {bake}");
+            return 0;
+        }
+
         if(probe_by > 0f){
             probe(d, bound, probe_by);
             return 0;

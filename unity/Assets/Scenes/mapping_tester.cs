@@ -1,15 +1,14 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
 #if UNITY_EDITOR
-using System;
 using System.IO;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 #endif
 
-#if UNITY_EDITOR
 // The five body sliders, as ratios on the rest body. Groups on purpose overlap: torso, arms and
 // legs partition every editable bone, and left and right cut the arms and legs a second way -- so a
 // left forearm carries both arms and left, and the sliders stack by multiplying. The shoulder bases
@@ -33,7 +32,6 @@ public class cage_shape{
         }
     }
 }
-#endif
 
 public class mapping_tester : MonoBehaviour{
     public SkinnedMeshRenderer source;
@@ -53,13 +51,13 @@ public class mapping_tester : MonoBehaviour{
     // Recipe values still being searched for; the inspector's tuning sliders write here and
     // rebake. Drawn by the inspector's cage section, not the default one.
     [HideInInspector] public cage_tune tune = new();
+#endif
 
     // Where the five body sliders stand. They scale whole groups of bones at once, so a proportion
     // can be reached without dragging fifty-three sliders -- and the groups overlap on purpose, an
     // arm bone taking both arms and its side. Each is a ratio on the rest body, and moving one
     // applies only the change since it was last here, so per-bone edits under it survive.
     [HideInInspector] public cage_shape shape = new();
-#endif
 
     // Which coordinates the deform button maps the mesh through.
     public cage_coords coords;
@@ -151,12 +149,9 @@ public class mapping_tester : MonoBehaviour{
         foreach(var b in measure()){
             b.length = b.rest;
         }
-#if UNITY_EDITOR
         shape = new cage_shape();
-#endif
     }
 
-#if UNITY_EDITOR
     // Which of the five groups a bone belongs to, read off the skeleton rather than listed: the two
     // arms are the subtrees under the clavicles, the two legs those under the hips, and the torso is
     // whatever is left -- spine, neck, head and the shoulder bases the arms hang from. So the groups
@@ -194,9 +189,35 @@ public class mapping_tester : MonoBehaviour{
         }
         shape[g] = to;
     }
-#endif
 
     public void import(){
+        clone_source();
+#if UNITY_EDITOR
+        // The bind is a product of the bake -- same rest geometry, same editor-only step.
+        constants = cage.bake(source, tune);
+        bind();
+#endif
+        ensure_cage_view();
+        update_cage();
+    }
+
+    // The same import with the rest side read from a bake instead of solved here: how the demo
+    // stands the body up at once in a build, where the baker is compiled out and the bind would
+    // hold the first frame for seconds. The file is what export_bake wrote.
+    public void import(TextAsset bake){
+        clone_source();
+        var (json, b) = cage_bake.read(bake.bytes);
+        Debug.Assert(b.w.Length / b.stride == source.sharedMesh.vertexCount, "cage: the bake was made from another mesh");
+        constants = JsonUtility.FromJson<cage_constants>(json);
+        bound = b;
+        coords = b.coords;
+        ensure_cage_view();
+        update_cage();
+    }
+
+    // The target as a fresh clone of the source: its mesh, and its skeleton as a subtree of this
+    // transform, so the bones can be edited while the source keeps standing at rest.
+    void clone_source(){
         if(target.rootBone != null){
             DestroyImmediate(target.rootBone.gameObject);
         }
@@ -217,14 +238,6 @@ public class mapping_tester : MonoBehaviour{
         target.rootBone = root;
         target.sharedMaterials = source.sharedMaterials;
         target.localBounds = source.localBounds;
-
-#if UNITY_EDITOR
-        // The bind is a product of the bake -- same rest geometry, same editor-only step.
-        constants = cage.bake(source, tune);
-        bind();
-#endif
-        ensure_cage_view();
-        update_cage();
     }
 
     void ensure_cage_view(){
@@ -350,13 +363,37 @@ public class mapping_tester : MonoBehaviour{
 
     // The same export without opening the editor, so refreshing a sweep is one command:
     //   Unity.exe -batchmode -quit -projectPath unity -executeMethod mapping_tester.export_headless
-    // Nobody is here to press "rebuild cage", so it bakes first: the sweep then measures the cage
-    // the current sources and the current tune make, which is the one worth sweeping.
     static void export_headless(){
+        baked().export_sweep_data();
+    }
+
+    // main.unity's tester, rebaked, for the headless exports: nobody is here to press "rebuild
+    // cage", and what is worth exporting is the cage the current sources and the current tune make.
+    static mapping_tester baked(){
         var tester = EditorSceneManager.OpenScene("Assets/Scenes/main.unity")
             .GetRootGameObjects().SelectMany(g => g.GetComponentsInChildren<mapping_tester>(true)).Single();
         tester.constants = cage.bake(tester.source, tester.tune);
-        tester.export_sweep_data();
+        return tester;
+    }
+
+    // The rest side for the demo as one file -- the baked constants, then the bind -- so a build
+    // maps the body without solving anything. Read back by import(TextAsset). Rebinds first if the
+    // bind is stale, so what goes out is the current cage.
+    const string bake_path = "Assets/demo/cage_bake.bytes";
+
+    public void export_bake(){
+        if(bound == null || bound.coords != coords){
+            bind();
+        }
+        cage_bake.write(File.Create(Path.Combine(Application.dataPath, "..", bake_path)), JsonUtility.ToJson(constants), bound);
+        AssetDatabase.ImportAsset(bake_path);
+        Debug.Log($"cage: demo bake written to {bake_path}, {bound.w.Length * sizeof(float) / 1048576f:0.0} MB of weights");
+    }
+
+    // The same without opening the editor:
+    //   Unity.exe -batchmode -quit -projectPath unity -executeMethod mapping_tester.export_bake_headless
+    static void export_bake_headless(){
+        baked().export_bake();
     }
 #endif
 
@@ -631,6 +668,10 @@ public class mapping_tester : MonoBehaviour{
 
                 if(mapping.constants != null && GUILayout.Button("export sweep data")){
                     mapping.export_sweep_data();
+                }
+
+                if(mapping.constants != null && GUILayout.Button("export demo bake")){
+                    mapping.export_bake();
                 }
 
                 if(mapping.constants != null && GUILayout.Button("check self-collision")){
