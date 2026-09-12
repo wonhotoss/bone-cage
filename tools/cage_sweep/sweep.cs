@@ -295,6 +295,9 @@ static class sweep{
         }
 
         Console.WriteLine($"{c.name}: {hit.Count} triangles in self-collision (side, up, depth in cm)");
+        // A random case has no readable name, so say which bones stand far from rest.
+        Console.WriteLine("  bones off rest by a quarter or more: " + string.Join(", ",
+            Enumerable.Range(0, c.ratio.Length).Where(b => Math.Abs(c.ratio[b] - 1f) >= 0.25f).OrderBy(b => c.ratio[b]).Select(b => $"{d.bone[b]} {c.ratio[b]:0.00}")));
         foreach(var t in hit.OrderBy(t => t)){
             Console.WriteLine($"  tri {t}: " + string.Join("  |  ", Enumerable.Range(0, 3).Select(e => at(d.k.tris[t * 3 + e]))));
         }
