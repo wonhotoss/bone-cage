@@ -537,6 +537,19 @@ public static class cage{
         new[]{ (wrist_lo, edge.hi), (elbow_lo, edge.hi), (arm_lo, edge.hi), (head, edge.lo), (crown, edge.lo), (crown, edge.mid), (crown, edge.hi) },
     };
 
+    // Wall quads split along the other diagonal. strip joins the front of the post a chain reaches
+    // to the back of the post it leaves, so the two sides of a foot get different diagonals: the
+    // chain runs down the outer side, knee to toe -- top of the toes to the heel -- and back up the
+    // inner side, toe to knee -- instep to sole. When a thick leg meets a short foot bone the instep
+    // corner passes the toe ring's plane, and the instep-to-sole triangle then cuts through the
+    // toes' wall while the other diagonal clears it, as the outer side shows. Named by the two
+    // posts in chain order; the right foot is listed too, since the mirror rule alone would mirror
+    // the fault. `[N31]`
+    static readonly ((int ring, edge e) from, (int ring, edge e) to)[] turned = {
+        ((toe_hi, edge.lo), (ankle_hi, edge.lo)),
+        ((ankle_lo, edge.hi), (toe_lo, edge.hi)),
+    };
+
     // The five fingers, thumb first. A hand's silhouette axis runs from the thumb (+s) to the pinky
     // (-s), and the six palm control points interleave with them.
     static readonly string[] fingers = { "Thumb", "Index", "Middle", "Ring", "Pinky" };
@@ -1242,7 +1255,7 @@ public static class cage{
             sections = sections,
         };
         var rest_points = control_points(k, rest);
-        (k.tris, k.grid) = topology(plates, walls, rest_points, side);
+        (k.tris, k.grid) = topology(plates, walls, turned.Select(t => (ends(t.from).hi, ends(t.to).hi)), rest_points, side);
 
         // The panels are traced in one consistent sense, but which sense faces outward depends on
         // the rig's axes. The enclosed volume settles it: the root sits inside the cage.
@@ -1312,8 +1325,11 @@ public static class cage{
     // the other way. So does the back of a plate against its front, which is the same reversal --
     // then a quad folds along the same two control points on both faces. Which side a face is on is
     // read off its rest centroid; no face straddles the midline, since every plate splits there.
-    static (int[] tris, int[] grid) topology(IEnumerable<(int hi, int lo)[]> plates, IEnumerable<(int hi, int lo)[]> walls, Vector3[] at, Vector3 side){
+    // A wall quad named in turned -- by its two posts' front vertices, in chain order -- takes the
+    // other diagonal (see turned).
+    static (int[] tris, int[] grid) topology(IEnumerable<(int hi, int lo)[]> plates, IEnumerable<(int hi, int lo)[]> walls, IEnumerable<(int from, int to)> turned, Vector3[] at, Vector3 side){
         var tris = new List<int>();
+        var turn = new HashSet<(int, int)>(turned);
 
         bool mirrored(IEnumerable<int> face){
             var c = face.Average(v => Vector3.Dot(at[v], side));
@@ -1330,7 +1346,7 @@ public static class cage{
         foreach(var wall in walls){
             for(var i = 0; i + 1 < wall.Length; i++){
                 var quad = new[]{ wall[i + 1].hi, wall[i].hi, wall[i].lo, wall[i + 1].lo };
-                strip(tris, quad, mirrored(quad));
+                strip(tris, quad, mirrored(quad) ^ turn.Contains((wall[i].hi, wall[i + 1].hi)));
             }
         }
 
