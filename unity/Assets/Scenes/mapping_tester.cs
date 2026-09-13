@@ -596,6 +596,7 @@ public class mapping_tester : MonoBehaviour{
                 var spine_gate_slack = EditorGUILayout.Slider("spine gate slack", mapping.tune.spine_gate_slack, -0.035f, 0.01f);
                 var knee_gate_slack = EditorGUILayout.Slider("knee gate slack", mapping.tune.knee_gate_slack, -0.035f, 0.01f);
                 var armpit_gate_slack = EditorGUILayout.Slider("armpit gate slack", mapping.tune.armpit_gate_slack, -0.05f, 0.01f);
+                var neck_gate_slack = EditorGUILayout.Slider("neck gate slack", mapping.tune.neck_gate_slack, -0.08f, 0.01f);
                 var crown_front = EditorGUILayout.Slider("crown ring front reach", mapping.tune.crown_front, -0.05f, 0.1f);
                 var crown_back = EditorGUILayout.Slider("crown ring back reach", mapping.tune.crown_back, -0.05f, 0.1f);
                 var crotch_drop = EditorGUILayout.Slider("crotch drop", mapping.tune.crotch_drop, 0f, 0.3f);
@@ -627,6 +628,7 @@ public class mapping_tester : MonoBehaviour{
                     mapping.tune.spine_gate_slack = spine_gate_slack;
                     mapping.tune.knee_gate_slack = knee_gate_slack;
                     mapping.tune.armpit_gate_slack = armpit_gate_slack;
+                    mapping.tune.neck_gate_slack = neck_gate_slack;
                     mapping.tune.crown_front = crown_front;
                     mapping.tune.crown_back = crown_back;
                     mapping.tune.crotch_drop = crotch_drop;

@@ -222,6 +222,8 @@ public class cage_tune{
                                              // edge may come before the gate stops the whole ring coming
                                              // down; negative demands a band of that height between the
                                              // armpit and the frustum ring under it `[N20]`
+    public float neck_gate_slack = -0.02f;   // how far below the sternum post the V's bottom may come before
+                                             // the gate lifts it; negative keeps the V that tall `[N20]`
     public float crown_front = 0f;  // depth reach of the crown ring: the chest and belly (front) and the
     public float crown_back = 0f;   // shoulder blades (back) sit under the torso panel these two rings span
     public float crotch_drop = 0.15f;   // how far below the Hips joint the crotch post sits, along up
@@ -1278,6 +1280,19 @@ public static class cage{
             gates = new[]{
                 arm_above_spine2("L arm above spine2", arm_hi, new[]{ hi_front, hi_back }),
                 arm_above_spine2("R arm above spine2", arm_lo, new[]{ lo_back, lo_front }),
+                // And the V keeps its height. A short chest brings the Neck joint, and the V's bottom
+                // with it, down toward the armpits' line, while long shoulder bases and a short clavicle
+                // raise the armpits and the sternum crossing between them; once the sternum stands
+                // above the V's bottom the torso's two top rungs swap and the neck panels pass through
+                // the chest band. The post alone is lifted -- the seam edges stay -- to keep the V a
+                // slack's height above the sternum; at rest the gap is 12.6 cm. `[N20]`
+                new cage_gate{
+                    name = "neck mid above sternum",
+                    moved = new[]{ post_hi, post_lo }.Select(end => rings.Length * 4 + at[(neck, edge.mid)] * 2 + end).ToArray(),
+                    probe = new[]{ post_hi, post_lo }.Select(end => rings.Length * 4 + at[(neck, edge.mid)] * 2 + end).ToArray(),
+                    floor = new[]{ post_hi, post_lo }.Select(end => rings.Length * 4 + at[(sternum, edge.mid)] * 2 + end).ToArray(),
+                    slack = tune.neck_gate_slack / scale, axis = up,
+                },
                 new cage_gate{ name = "head above arms", moved = head_box, probe = head_ring, floor = shoulder_tops, slack = tune.head_gate_slack / scale, axis = up },
                 arm_beside_head("L arm beside head", arm_hi, side),
                 arm_beside_head("R arm beside head", arm_lo, -side),
