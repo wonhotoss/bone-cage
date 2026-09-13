@@ -1467,3 +1467,32 @@ F는 그대로 2건(고관절 1.5 + 발 뼈 0.5). 탈출은 자리까지 같다 
 ### 남긴 일
 - **V 바닥 14** — `neck mid above arms` gate(V넥 (3)): `random#1035`로 잰다.
 - 극단 쌍 탈출(고관절 0.5 + 다리 뼈 1.5 → 158/271), 룰 8이 좁은 어깨의 윗가슴을 얕게 하는 것, 머리 폭의 근거, probe 도구, `front_seat`/`back_seat` 접기, 손 스윕 — 그대로.
+
+---
+
+## 2026-09-13 (이어서) — V는 높이를 갖는다: 여섯째 보정, 네 층 모두 0
+
+커밋: (이 항목과 함께 — cage, docs). 씬은 아직 — 새 gate로 `rebuild cage`가 필요하다.
+
+### 질문과 답
+"남은 자기겹침에 대해 설명. 재현하려면?" — 최소 재현 `chest 0.5 · right clavicle 0.55 · left shoulder base 1.3 · right shoulder base 1.5`(11 삼각형). chest(Spine3→Neck) 0.5가 Neck 관절과 `neck mid`를 6.5 cm 내리고(46.7), 어깨 밑동 1.3·1.5가 Arm 관절·겨드랑이를 올리며, 짧은 오른 쇄골이 이음선을 줄여 그쪽 겨드랑이를 더 올려 그 교점 `sternum`이 47.0 — **sternum이 V 바닥을 넘는다.** 몸통 반판의 꼭대기 가로대 둘(arm hi–neck mid, arm lo–sternum)이 순서를 바꿔 목 판과 가슴 띠가 서로를 지난다. 하나씩은 안 난다(chest 0.5만: 6 cm 남음; 어깨 밑동 둘 1.5 + chest 0.5: 1.5 남음). 3층 14건이 전부 이 조합이다. 이 조합은 룰 8 전에도 가능했겠으나 3층을 09-07 이후 돌리지 않았고, sternum이 겨드랑이를 따라 오르는 교점이 된 것(`[N27]`)도 09-09 이후다.
+
+### 결정 — 바닥은 arm hi 변이 아니라 sternum
+V넥 (3)은 `neck mid`를 arm hi 변 대비로 예고했지만, 접힘의 직접 조건은 **V 높이 ≥ 0**, 즉 `neck mid`와 `sternum`의 순서다. 사용자: "확실히 neck mid가 sternum을 넘어 내려오지만 못하게 하면 된다." gate `neck mid above sternum`: 올리는 것 = 재는 곳 = `neck mid` 두 끝(v72·v73), 바닥 = `sternum mid` 두 끝(v74·v75), 축 up, 튠 `neck gate slack` 초기 **−0.02**(V 높이 2 cm 요구). 기둥만 오르고 이음선 변은 그대로라 V가 얕아질 뿐 모양은 남는다. rest 차 12.6 cm → no-op. sternum을 옮기는 gate가 없어 순서 무관. 대가: chest를 아주 줄여도 V 바닥이 흉골 위 2 cm에 멈춰 목 앞이 그만큼 남는다.
+
+### 검증 (export `out_gates5` 사본에 gate를 JSON으로 심어 잼)
+- 재현 조합 11 → **0**(neck mid 46.7 → 49.0). `random#1035`·`#17185`·`#9118` → 0.
+- 1·2·4층 2,321: 실패 0, 새는 206 — 변동 없음.
+- **3층 20,000: 14 → 0.** 탈출 11,679 / 21 / 87 / 271 — 변동 없음.
+- `dotnet build` 오류 0. 에디터 재bake·눈 확인은 아직.
+
+### 뜻
+하루 반 사이 3층 414 → 0. 룰 8(깊이 복원)이 연 것은 전부 닫혔다: gate 둘(`arm above spine2` 겨드랑이, `neck mid above sternum` V)과 여유 둘(`head gate slack` 3 → 1, `arm gate slack` −1 → −3). **네 층 모두 자기겹침 0, rest 0 / 0.** 보정은 여섯(거울쌍 셋 + 셋, 선언 아홉). 탈출은 3층에서 룰 8 전(중앙값 8, 최악 96)보다 크다(21, 271) — 한쪽 뿌리 뼈 0.5가 폭과 깊이를 함께 죄는 룰 8의 값이고 판정은 아니다.
+
+### 반영
+`cage_tune.neck_gate_slack`, gate 목록(`arm above spine2` 둘 뒤), tester 슬라이더. 문서: §6b 행, §7, `[N20]` 여섯째 보정, §9 지도 G′ 닫음·머리말("전부 닫혔다, 3층까지")·이력 표, V넥 (3).
+
+### 남긴 일
+- 씬: `rebuild cage` → 재현 조합에서 gate 확인, `neck gate slack` 값 → `export sweep data` → 네 층 스윕으로 확정.
+- 극단 쌍 탈출(고관절 0.5 + 다리 뼈 1.5 → 271): `[N22]`를 다시 볼지 길이 범위로 받을지.
+- 룰 8이 좁은 어깨의 윗가슴을 얕게 하는 것, 머리 폭의 근거(키), probe 도구(폭만 ×k), `front_seat`/`back_seat` 접기, 손 스윕 — 그대로.
