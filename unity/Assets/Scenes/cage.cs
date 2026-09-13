@@ -205,8 +205,12 @@ public class cage_tune{
                                             // them. Was 0.038: once the head deepens with the stature and
                                             // the arm rings thin with the clavicle, the neck panel folds
                                             // 1.5 cm in, so the slack came down to 1 cm `[N20]`
-    public float arm_gate_slack = 0f;   // how far inside the head's silhouette an arm ring's top edge may
-                                        // come before the gate stops the whole ring coming in `[N20]`
+    public float arm_gate_slack = -0.03f;   // how far inside the head's silhouette an arm ring's top edge may
+                                            // come before the gate stops the whole ring coming in; negative
+                                            // keeps it that far outside. Was 0, then -0.01: with the head
+                                            // resting on the shallower shoulder, the torso's top triangle
+                                            // runs from that ring's corner through the head's front, and
+                                            // 3 cm of side clearance is what carries it past `[N20]`
     public float spine_gate_slack = -0.005f;  // how far past the hips the spine ring's bottom may sink
                                              // before the gate stops the torso coming down on them;
                                              // negative demands a gap, as it must here `[N20]`

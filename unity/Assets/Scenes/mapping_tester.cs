@@ -564,12 +564,14 @@ public class mapping_tester : MonoBehaviour{
 
                     if(g.Key == "" || open[g.Key]){
                         foreach(var b in g){
+                            // As a ratio on rest, the way the sweep names its cases and the design
+                            // document reads: a slider at 1.3 is the bone at 1.3.
                             EditorGUI.BeginChangeCheck();
-                            var length = EditorGUILayout.Slider(b.name, b.length, b.rest * 0.5f, b.rest * 1.5f);
+                            var ratio = EditorGUILayout.Slider(b.name, b.length / b.rest, 0.5f, 1.5f);
 
                             if(EditorGUI.EndChangeCheck()){
                                 Undo.RecordObject(b.target, "edit bone length");
-                                b.length = length;
+                                b.length = b.rest * ratio;
                                 mapping.update_body();
                             }
                         }
