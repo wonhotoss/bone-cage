@@ -97,6 +97,19 @@ static class sweep{
             return 0;
         }
 
+        // An ad-hoc case, "left clavicle=0.5, lower neck=0.6": the named bones at those ratios, the
+        // rest at 1 -- for reproducing a failure by hand before reaching for the sliders.
+        var set = arg(args, "--set");
+        if(set != null){
+            var ratio = Enumerable.Repeat(1f, d.bone.Length).ToArray();
+            foreach(var e in set.Split(',').Select(s => s.Trim()).Where(s => s.Length > 0)){
+                var kv = e.Split('=');
+                ratio[Array.IndexOf(d.bone, kv[0].Trim())] = float.Parse(kv[1]);
+            }
+            inspect(d, new length_case{ tier = "set", name = set, single = -1, ratio = ratio });
+            return 0;
+        }
+
         var clock = System.Diagnostics.Stopwatch.StartNew();
         var rest_cage = cage.points(new Dictionary<string, float>(), d.k);
         var bound = cage_deform.bind(cage_coords.mvc, d.pts, rest_cage, d.k.tris);
