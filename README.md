@@ -93,8 +93,8 @@ alike:
 [tools/cage_sweep](tools/cage_sweep) compiles the Unity sources themselves and walks the slider
 range, rest × [0.5, 1.5], in four tiers: every bone alone (184 cases), every pair at its four
 corners (1,012), 20,000 random whole bodies, and a 1,125-point grid over the five body-proportion
-sliders. Current standing: rest is clean (0 outside, 0 collisions); tiers 1, 2 and 4 are clean; the
-random tier has 414 open cases in two mechanisms, both extreme combinations, tracked in
+sliders. Current standing (2026-09-14, six gates): rest is clean (0 outside, 0 collisions) and all
+four tiers have 0 failures. Post-deform escapes are a statistic, not a verdict, and are tracked in
 [docs/cage.md §9](docs/cage.md).
 
 ---
@@ -159,8 +159,8 @@ Left drag orbits, right drag pans, the wheel zooms.
 - **One global cage.** The cage is built in the rest pose and knows nothing of the current pose; it
   does not have to, since the mapping is pose-independent and animation rides on the rebound rest
   pose. The wire in the demo therefore follows the pelvis, not the limbs.
-- **Thickness driver.** Eight rules are in; the remaining open items — the two random-tier
-  mechanisms, the length range to support, the hands — are listed in
+- **Thickness driver.** Eight rules are in; the remaining open items — the length range to
+  support, the hands, the visual review of what rule 8 does to a narrow shoulder — are listed in
   [docs/cage.md §9](docs/cage.md).
 
 ## Documents

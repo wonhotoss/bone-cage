@@ -1496,3 +1496,51 @@ V넥 (3)은 `neck mid`를 arm hi 변 대비로 예고했지만, 접힘의 직접
 - 씬: `rebuild cage` → 재현 조합에서 gate 확인, `neck gate slack` 값 → `export sweep data` → 네 층 스윕으로 확정.
 - 극단 쌍 탈출(고관절 0.5 + 다리 뼈 1.5 → 271): `[N22]`를 다시 볼지 길이 범위로 받을지.
 - 룰 8이 좁은 어깨의 윗가슴을 얕게 하는 것, 머리 폭의 근거(키), probe 도구(폭만 ×k), `front_seat`/`back_seat` 접기, 손 스윕 — 그대로.
+
+## 2026-09-14 — 씬으로 확정한 네 층 0, bind는 버튼으로, 튠 값은 코드로
+
+커밋: (이 항목과 함께 — tester, cage, docs). 씬은 변경 없음 — 튠 값이 이미 씬의 것이라 재bake·재export가 필요 없다.
+
+### 스윕 — 재bake된 씬의 export로
+사용자가 `export sweep data`를 눌렀고(11:40), 그 데이터로 네 층을 돌렸다(`out_scene6`). 여섯 gate가 든 씬 자체로 돈 첫 스윕이다.
+- rest 0 밖 · 0 겹침. **1층 184 / 2층 1,012 / 3층 20,000 / 4층 1,125 전부 실패 0.**
+- 탈출 11,885 케이스, 중앙값 21 · 90번째 88 · 최악 271(`random#15857`, LeftLeg) — 09-13 사본 측정(11,679 / 21 / 87 / 271)과 같은 수준.
+
+### 결정(사용자)
+- 변형 후 containment 탈출은 시각적 설득력의 문제다. 자기겹침과 같은 급의 판정으로 보지 않는다.
+- 룰 8이 좁은 어깨의 윗가슴을 얕게 하는 것은 시각적으로 문제가 보이면 그때 리뷰한다.
+- **좌표 방식은 MVC로 확정.** 두께 복원을 알고리즘(Green·Somigliana)에 맡기지 않는다. 문서에서 뒤집힘 전 문장 넷을 고쳤다 — cage-deformation-plan.md 검증 절 끝("Green으로 넘어갈 이유"), 한계 2·4, end-to-end 검증 3; cage.md §9 bind 비용("Green/Somigliana로 갈 때 먼저 부딪히는 벽").
+- 튠 값을 상수로 굽되 **튠 자체는 없애지 않는다.**
+
+### bind를 버튼으로 — `bind mesh`
+튠 슬라이더를 놓는 순간 `tune_pending`이 `bind()` + `update_body()`를 불러 수 초 멈추던 것을 뺐다. 이제 슬라이더는 재bake + 케이지 갱신만 하고(와이어는 드래그를 따라온다), 메시는 이전 bind에 남는다. `rebuild cage`도 bind하지 않는다. 새 버튼 `bind mesh`가 bind + `update_body`.
+- **stale 판정은 계산**: `bind()`가 풀 때의 rest 케이지를 `bound_rest`로 두고, `bind_stale` = bind 없음 ∨ 좌표 방식 다름 ∨ 현재 상수의 rest 케이지 ≠ `bound_rest`. 플래그가 아니라 인스펙터를 다시 열거나 씬을 다시 로드해도 맞다. 참이면 cage 섹션에 경고 "mesh is not bound to the current cage -- press bind mesh".
+- `mapped()`·`export_bake()`가 `bind_stale`을 본다 — 누르지 않은 채 뼈 슬라이더·`check containment`·export를 쓰면 그때 한 번 bind한다. 데모의 `import(TextAsset)`은 bake와 bind가 한 상수에서 나왔으므로 `bound_rest`를 그 자리에서 채워 WebGL에서 지연 bind가 나지 않는다.
+
+### 튠 값을 코드로
+`cage_tune`의 기본값 20개를 씬 값으로 바꿨다(gate 여유는 knee −0.01 → −0.005만 달랐다): arm tilt 7 → 15, arm length 0.16 → 0.18, head front/back 0/0 → 0.01/−0.04, crown front/back 0/0 → 0.01/0.004, crotch drop 0.15 → 0.08, hip out 1 → 0.8, knee out/back 0/0.1 → 0.005/0.02, ankle front/back 0/0 → −0.08/0.005, elbow hi 0.05 → 0.01, wrist thumb/pinky 0/0 → −0.016/−0.004, thumb/pinky out 0/0 → −0.01/−0.01, finger out 0 → 0.0005, valley reach 0.01 → 0.011. 씬 `tune` 블록과 diff로 일치 확인. 새 tester와 헤드리스 bake가 `main.unity`의 케이지를 만든다.
+- 문서: cage.md §2·§3·§4·§6b의 "튠 중(§7, 초기 X)"를 값으로, §7 슬라이더 행을 현재값·범위로 다시 쓰고 없어진 슬라이더(arm hi/lo·spine·neck·sternum·pelvis front/back) 삭제, §7 `rebuild cage`/`bind mesh` 행, §9 이력 표에 오늘 행·V넥 (4)·골반 (1)·발 (1) 확정, README(en/ko) 검증 문단 "3층 414 열림" → "네 층 모두 0".
+
+### 검증
+- `dotnet build` Unity·sweep 오류 0. 에디터에서 슬라이더 드래그 시 멈춤이 없는지, 경고와 `bind mesh` 버튼은 아직 눈으로 확인하지 않았다.
+
+### 남긴 일
+- 에디터에서 `bind mesh` 흐름 확인.
+- 지원할 길이 범위, 손 스윕, 룰 8 윗가슴의 눈 확인, probe 도구(폭만 ×k), `front_seat`/`back_seat` 접기 — 그대로.
+
+## 2026-09-14 (이어서) — 씬에는 diff만: `cage_tune.baked` + `tune_delta`
+
+커밋: (이 항목과 함께 — cage, tester, scene, docs).
+
+### 질문
+"튠이 기본값으로 구워졌다면 인스펙터는 기본값에 대한 diff로 하면 되지 않는가? bone length처럼 씬에는 diff 0 또는 비율 1이고, 조정하면 기본값에 변화를 가하는 식." — 맞다. 앞 항목처럼 코드 기본값과 씬 절대값을 따로 들면 한쪽만 고쳐질 때 어긋난다. diff로 두면 코드가 유일한 원본이다.
+
+### 설계
+- **비율이 아니라 덧셈.** 튠 값 상당수가 0이거나 음수(`body front` 0, gate 여유, `head back` −0.04)라 비율이 정의되지 않는다. 뼈 길이는 rest가 양수라 비율이 맞았던 것.
+- `cage_tune`의 필드 기본값은 전부 0 — `new cage_tune()`이 곧 diff 0. 확정값은 정적 `cage_tune.baked` 하나에 모았다(값 이력 주석도 그쪽으로). `cage_tune.tuned(delta)`가 public 인스턴스 필드 reflection으로 baked + delta를 만들고, `bake`의 세 호출(import·인스펙터·헤드리스 `baked()`)이 그것을 읽는다.
+- `mapping_tester.tune` → `tune_delta`. `main.unity`의 블록은 `tune_delta:` 30개 0으로 고쳐 씬 파일이 상태를 그대로 보인다. 케이지는 같으므로 재bake·재export 없음.
+- 인스펙터: 손으로 쓴 슬라이더 30개 + 대입 30줄을 (필드, 라벨, 최소, 최대) 표 `tune_knobs`와 루프 하나로. 슬라이더는 diff(0 = 확정값), 범위는 문서의 절대 범위를 확정값만큼 옮긴 것, 라벨에 결과 절대값(`arm ring tilt (deg) = 15`). `reset tune` 버튼이 diff를 0으로.
+- 확정 절차: diff를 `baked`에 더하고 `reset tune`, 문서 표 갱신(§7).
+
+### 검증
+- `dotnet build` Unity·sweep 오류 0. 에디터에서 diff 0의 케이지가 이전과 같은지, 슬라이더·라벨·`reset tune`은 아직 눈으로 확인하지 않았다.
