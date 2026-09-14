@@ -3063,37 +3063,37 @@ MonoBehaviour:
     clearance: 0.0000050000003
   cage_view: {fileID: 1318956037}
   all_edges: 0
-  tune:
-    arm_tilt: 15
-    arm_length: 0.18
+  tune_delta:
+    arm_tilt: 0
+    arm_length: 0
     body_front: 0
     body_back: 0
-    head_tilt: 25
-    head_offset: 0.023
-    head_front: 0.01
-    head_back: -0.04
-    head_gate_slack: 0.01
-    arm_gate_slack: -0.03
-    spine_gate_slack: -0.005
-    knee_gate_slack: -0.005
-    armpit_gate_slack: -0.01
-    neck_gate_slack: -0.02
-    crown_front: 0.01
-    crown_back: 0.004
-    crotch_drop: 0.08
-    hip_out: 0.8
-    knee_out: 0.005
-    knee_back: 0.02
-    ankle_tilt: 45
-    ankle_front: -0.08
-    ankle_back: 0.005
-    elbow_hi: 0.01
-    wrist_thumb: -0.016
-    wrist_pinky: -0.004
-    thumb_out: -0.01
-    pinky_out: -0.01
-    finger_out: 0.0005
-    valley_reach: 0.011
+    head_tilt: 0
+    head_offset: 0
+    head_front: 0
+    head_back: 0
+    head_gate_slack: 0
+    arm_gate_slack: 0
+    spine_gate_slack: 0
+    knee_gate_slack: 0
+    armpit_gate_slack: 0
+    neck_gate_slack: 0
+    crown_front: 0
+    crown_back: 0
+    crotch_drop: 0
+    hip_out: 0
+    knee_out: 0
+    knee_back: 0
+    ankle_tilt: 0
+    ankle_front: 0
+    ankle_back: 0
+    elbow_hi: 0
+    wrist_thumb: 0
+    wrist_pinky: 0
+    thumb_out: 0
+    pinky_out: 0
+    finger_out: 0
+    valley_reach: 0
   shape:
     torso: 1
     arms: 1

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using UnityEngine;
 
 // Bone-length driven cage generation.
@@ -185,63 +186,98 @@ public class cage_constants{
 }
 
 #if UNITY_EDITOR
-// Recipe values still being found. The inspector's tuning sliders write here and rebake, so the
-// cage follows while the value is searched for; once settled, a value moves into the recipe table
-// in bake() and into the design document, and its slider goes. Scene units, like the recipes.
+// Recipe values found in the editor. Two sets are in play: `baked`, the settled values -- what
+// main.unity's cage is made of (2026-09-14, the four sweep tiers at zero) -- and the tester's
+// delta, the inspector sliders' departure from them, all zero in the scene by default. bake()
+// reads their sum, tuned(delta). Once a departure settles it is added into `baked` and the
+// scene's delta goes back to zero, so the code holds the one copy. Scene units, like the recipes.
 [Serializable]
 public class cage_tune{
-    public float arm_tilt = 7f;     // degrees the arm rings lean in at the top about the depth axis, seen from
-                                    // the front: the raglan seam from the armpit up over the trapezius
-    public float arm_length = 0.16f;    // the seam's length, armpit edge to top edge, the shoulder joint at its middle
-    public float body_front = 0f, body_back = 0f;   // depth reach of the trunk past its flesh, off the Hips joint:
-                                                    // the chest and belly (front), the buttocks and shoulder blades
-                                                    // (back). The arm rings, the neck post, the spine ring and the
-                                                    // pelvis posts all share it, so the torso is a box from the side `[N28]`
-    public float head_tilt = 25f;       // degrees the head ring's plane leans forward about the side axis, chin down
-    public float head_offset = 0.023f;  // how far above the Head joint that plane sits, along its own normal
-    public float head_front = 0f, head_back = 0f;   // depth reach of the head ring: chin and occiput
-    public float head_gate_slack = 0.01f;   // how far the head ring's lowest corner may sink below the
-                                            // arm rings' top edges before the gate lifts the head off
-                                            // them. Was 0.038: once the head deepens with the stature and
-                                            // the arm rings thin with the clavicle, the neck panel folds
-                                            // 1.5 cm in, so the slack came down to 1 cm `[N20]`
-    public float arm_gate_slack = -0.03f;   // how far inside the head's silhouette an arm ring's top edge may
-                                            // come before the gate stops the whole ring coming in; negative
-                                            // keeps it that far outside. Was 0, then -0.01: with the head
-                                            // resting on the shallower shoulder, the torso's top triangle
-                                            // runs from that ring's corner through the head's front, and
-                                            // 3 cm of side clearance is what carries it past `[N20]`
-    public float spine_gate_slack = -0.005f;  // how far past the hips the spine ring's bottom may sink
-                                             // before the gate stops the torso coming down on them;
-                                             // negative demands a gap, as it must here `[N20]`
-    public float knee_gate_slack = -0.01f;   // how far past the crotch a knee ring's inner edge may come
-                                             // before the gate stops the whole ring; negative demands a gap
-                                             // instead, and here it must -- stopped flush both rings stand
-                                             // on the midline and the panels still graze `[N20]`
-    public float armpit_gate_slack = -0.01f; // how far below the spine2 ring's corners an arm ring's bottom
-                                             // edge may come before the gate stops the whole ring coming
-                                             // down; negative demands a band of that height between the
-                                             // armpit and the frustum ring under it `[N20]`
-    public float neck_gate_slack = -0.02f;   // how far below the sternum post the V's bottom may come before
-                                             // the gate lifts it; negative keeps the V that tall `[N20]`
-    public float crown_front = 0f;  // depth reach of the crown ring: the chest and belly (front) and the
-    public float crown_back = 0f;   // shoulder blades (back) sit under the torso panel these two rings span
-    public float crotch_drop = 0.15f;   // how far below the Hips joint the crotch post sits, along up
-    public float hip_out = 1f;          // ratio: an outer hip post is this many crotch->UpLeg spans past its UpLeg
-    public float knee_out = 0f;         // reach of both knee rings' outer edge, away from the other leg
-    public float knee_back = 0.1f;      // and of their back edge, past the hamstring and calf
-    public float ankle_tilt = 45f;      // degrees the ankle rings' plane leans back from horizontal about the side axis: heel down, instep up
-    public float ankle_front = 0f;      // depth reach of the ankle rings along their tilted d: up the instep (front),
-    public float ankle_back = 0f;       // down behind the heel (back) -- which is also the height the sole is levelled to
-    public float elbow_hi = 0.05f;      // hi reach of both elbow rings: how far their top edge clears the elbow
-    public float wrist_thumb = 0f;      // reach of both wrist rings across the palm, past the measured width: thumb side
-    public float wrist_pinky = 0f;      // and pinky side; negative draws the ring in over the wrist
-    public float thumb_out = 0f;        // reach of the palm octagon's outer posts past the hand's width: the thumb side
-    public float pinky_out = 0f;        // and the pinky side
-    public float finger_out = 0f;       // reach of every finger ring on both sides, across its own bone: the one
-                                        // knob for all the fingers at once, over the per-ring finger_reach table
-    public float valley_reach = 0.01f;  // how far past the knuckle line a valley control point sits, so the web
-                                        // between two fingers falls inside the shell; no joint of the rig marks it
+    public float arm_tilt;      // degrees the arm rings lean in at the top about the depth axis, seen from
+                                // the front: the raglan seam from the armpit up over the trapezius
+    public float arm_length;    // the seam's length, armpit edge to top edge, the shoulder joint at its middle
+    public float body_front, body_back;     // depth reach of the trunk past its flesh, off the Hips joint:
+                                            // the chest and belly (front), the buttocks and shoulder blades
+                                            // (back). The arm rings, the neck post, the spine ring and the
+                                            // pelvis posts all share it, so the torso is a box from the side `[N28]`
+    public float head_tilt;     // degrees the head ring's plane leans forward about the side axis, chin down
+    public float head_offset;   // how far above the Head joint that plane sits, along its own normal
+    public float head_front, head_back;     // depth reach of the head ring: chin and occiput
+    public float head_gate_slack;   // how far the head ring's lowest corner may sink below the arm rings'
+                                    // top edges before the gate lifts the head off them `[N20]`
+    public float arm_gate_slack;    // how far inside the head's silhouette an arm ring's top edge may come
+                                    // before the gate stops the whole ring coming in; negative keeps it
+                                    // that far outside `[N20]`
+    public float spine_gate_slack;  // how far past the hips the spine ring's bottom may sink before the
+                                    // gate stops the torso coming down on them; negative demands a gap,
+                                    // as it must here `[N20]`
+    public float knee_gate_slack;   // how far past the crotch a knee ring's inner edge may come before
+                                    // the gate stops the whole ring; negative demands a gap instead, and
+                                    // here it must -- stopped flush both rings stand on the midline and
+                                    // the panels still graze `[N20]`
+    public float armpit_gate_slack; // how far below the spine2 ring's corners an arm ring's bottom edge
+                                    // may come before the gate stops the whole ring coming down; negative
+                                    // demands a band of that height between the armpit and the frustum
+                                    // ring under it `[N20]`
+    public float neck_gate_slack;   // how far below the sternum post the V's bottom may come before the
+                                    // gate lifts it; negative keeps the V that tall `[N20]`
+    public float crown_front;   // depth reach of the crown ring: the chest and belly (front) and the
+    public float crown_back;    // shoulder blades (back) sit under the torso panel these two rings span
+    public float crotch_drop;   // how far below the Hips joint the crotch post sits, along up
+    public float hip_out;       // ratio: an outer hip post is this many crotch->UpLeg spans past its UpLeg
+    public float knee_out;      // reach of both knee rings' outer edge, away from the other leg
+    public float knee_back;     // and of their back edge, past the hamstring and calf
+    public float ankle_tilt;    // degrees the ankle rings' plane leans back from horizontal about the side axis: heel down, instep up
+    public float ankle_front;   // depth reach of the ankle rings along their tilted d: up the instep (front),
+    public float ankle_back;    // down behind the heel (back) -- which is also the height the sole is levelled to
+    public float elbow_hi;      // hi reach of both elbow rings: how far their top edge clears the elbow
+    public float wrist_thumb;   // reach of both wrist rings across the palm, past the measured width: thumb side
+    public float wrist_pinky;   // and pinky side; negative draws the ring in over the wrist
+    public float thumb_out;     // reach of the palm octagon's outer posts past the hand's width: the thumb side
+    public float pinky_out;     // and the pinky side
+    public float finger_out;    // reach of every finger ring on both sides, across its own bone: the one
+                                // knob for all the fingers at once, over the per-ring finger_reach table
+    public float valley_reach;  // how far past the knuckle line a valley control point sits, so the web
+                                // between two fingers falls inside the shell; no joint of the rig marks it
+
+    public static readonly cage_tune baked = new(){
+        arm_tilt = 15f,
+        arm_length = 0.18f,
+        body_front = 0f, body_back = 0f,
+        head_tilt = 25f,
+        head_offset = 0.023f,
+        head_front = 0.01f, head_back = -0.04f,
+        head_gate_slack = 0.01f,    // was 0.038: once the head deepens with the stature and the arm
+                                    // rings thin with the clavicle, the neck panel folds 1.5 cm in,
+                                    // so the slack came down to 1 cm
+        arm_gate_slack = -0.03f,    // was 0, then -0.01: with the head resting on the shallower
+                                    // shoulder, the torso's top triangle runs from that ring's corner
+                                    // through the head's front, and 3 cm of side clearance carries it past
+        spine_gate_slack = -0.005f,
+        knee_gate_slack = -0.005f,
+        armpit_gate_slack = -0.01f,
+        neck_gate_slack = -0.02f,
+        crown_front = 0.01f, crown_back = 0.004f,
+        crotch_drop = 0.08f,
+        hip_out = 0.8f,
+        knee_out = 0.005f, knee_back = 0.02f,
+        ankle_tilt = 45f,
+        ankle_front = -0.08f, ankle_back = 0.005f,
+        elbow_hi = 0.01f,
+        wrist_thumb = -0.016f, wrist_pinky = -0.004f,
+        thumb_out = -0.01f, pinky_out = -0.01f,
+        finger_out = 0.0005f,
+        valley_reach = 0.011f,
+    };
+
+    // baked with the delta added knob by knob: the tune the bake reads.
+    public static cage_tune tuned(cage_tune delta){
+        var t = new cage_tune();
+        foreach(var f in typeof(cage_tune).GetFields(BindingFlags.Public | BindingFlags.Instance)){
+            f.SetValue(t, (float)f.GetValue(baked) + (float)f.GetValue(delta));
+        }
+        return t;
+    }
 }
 #endif
 

@@ -48,9 +48,9 @@ public class mapping_tester : MonoBehaviour{
     public bool all_edges;
 
 #if UNITY_EDITOR
-    // Recipe values still being searched for; the inspector's tuning sliders write here and
-    // rebake. Drawn by the inspector's cage section, not the default one.
-    [HideInInspector] public cage_tune tune = new();
+    // The tuning sliders' departure from cage_tune.baked, knob by knob; zero is the baked cage.
+    // The inspector's cage section draws it as sliders and rebakes from baked + delta.
+    [HideInInspector] public cage_tune tune_delta = new();
 #endif
 
     // Where the five body sliders stand. They scale whole groups of bones at once, so a proportion
@@ -68,6 +68,15 @@ public class mapping_tester : MonoBehaviour{
     // the heavier coordinates the plan calls for want an asset of their own anyway -- so a scene
     // reload rebinds.
     cage_bind bound;
+
+    // The rest cage the bind was solved against. A rebake moves the rest cage while the weights
+    // stay, so this is what tells a stale bind from a current one -- there is no flag to keep in step.
+    Vector3[] bound_rest;
+
+    // Whether mapping through the current cage would need a fresh solve: no bind yet, another
+    // coordinate method chosen, or the constants no longer build the rest cage the bind was made on.
+    public bool bind_stale => bound == null || bound.coords != coords
+        || !cage.points(new Dictionary<string, float>(), constants).SequenceEqual(bound_rest);
 
     // Debug snapshots drawn as gizmos in the live cage space: escaped mesh vertices and the cage
     // triangles that self-intersect. Populated by the inspector check buttons.
@@ -194,7 +203,7 @@ public class mapping_tester : MonoBehaviour{
         clone_source();
 #if UNITY_EDITOR
         // The bind is a product of the bake -- same rest geometry, same editor-only step.
-        constants = cage.bake(source, tune);
+        constants = cage.bake(source, cage_tune.tuned(tune_delta));
         bind();
 #endif
         ensure_cage_view();
@@ -210,6 +219,8 @@ public class mapping_tester : MonoBehaviour{
         Debug.Assert(b.w.Length / b.stride == source.sharedMesh.vertexCount, "cage: the bake was made from another mesh");
         constants = JsonUtility.FromJson<cage_constants>(json);
         bound = b;
+        // The bake wrote constants and bind from one cage, so the bind is current by construction.
+        bound_rest = cage.points(new Dictionary<string, float>(), constants);
         coords = b.coords;
         ensure_cage_view();
         update_cage();
@@ -265,7 +276,7 @@ public class mapping_tester : MonoBehaviour{
         * source.bones[0].localToWorldMatrix * source.sharedMesh.bindposes[0];
 
     // Solve the pristine source geometry against the rest cage. Both are constants of the import,
-    // so this runs there and after any cage rebuild, and deform is a weighted sum from then on.
+    // so this runs there and once after a cage rebuild, and deform is a weighted sum from then on.
     public void bind(){
         var to_rig = bind_to_rig;
         var rest_pts = source.sharedMesh.vertices.Select(v => to_rig.MultiplyPoint3x4(v)).ToArray();
@@ -273,6 +284,7 @@ public class mapping_tester : MonoBehaviour{
 
         var clock = System.Diagnostics.Stopwatch.StartNew();
         bound = cage_deform.bind(coords, rest_pts, rest_cage, constants.tris);
+        bound_rest = rest_cage;
         Debug.Log($"cage: bound {rest_pts.Length} vertices to the rest cage through {coords} in {clock.ElapsedMilliseconds} ms");
     }
 
@@ -280,8 +292,9 @@ public class mapping_tester : MonoBehaviour{
     // that built that cage. No skinning is involved anywhere in this pipeline -- the skeleton drives
     // the cage and the cage drives the mesh -- so this is the body the containment check measures too.
     public Vector3[] mapped(Vector3[] live){
-        // The dropdown is a plain field with no hook, so a method switch surfaces here.
-        if(bound == null || bound.coords != coords){
+        // The dropdown is a plain field with no hook, and a tuning drag rebakes without binding,
+        // so a stale bind surfaces here: solved once, on the first map that needs it.
+        if(bind_stale){
             bind();
         }
         return cage_deform.map(bound, live);
@@ -368,11 +381,11 @@ public class mapping_tester : MonoBehaviour{
     }
 
     // main.unity's tester, rebaked, for the headless exports: nobody is here to press "rebuild
-    // cage", and what is worth exporting is the cage the current sources and the current tune make.
+    // cage", and what is worth exporting is the cage the current sources and the current tune delta make.
     static mapping_tester baked(){
         var tester = EditorSceneManager.OpenScene("Assets/Scenes/main.unity")
             .GetRootGameObjects().SelectMany(g => g.GetComponentsInChildren<mapping_tester>(true)).Single();
-        tester.constants = cage.bake(tester.source, tester.tune);
+        tester.constants = cage.bake(tester.source, cage_tune.tuned(tester.tune_delta));
         return tester;
     }
 
@@ -382,7 +395,7 @@ public class mapping_tester : MonoBehaviour{
     const string bake_path = "Assets/demo/cage_bake.bytes";
 
     public void export_bake(){
-        if(bound == null || bound.coords != coords){
+        if(bind_stale){
             bind();
         }
         cage_bake.write(File.Create(Path.Combine(Application.dataPath, "..", bake_path)), JsonUtility.ToJson(constants), bound);
@@ -448,10 +461,39 @@ public class mapping_tester : MonoBehaviour{
         // Which cage groups are unfolded in the scene view, by name. Inspector state likewise.
         readonly HashSet<string> unfolded = new();
 
-        // A tuning slider has moved and the mesh has not been rebound to the new cage yet. The
-        // rebake and re-place are milliseconds, so the wire follows the drag; the bind is seconds,
-        // so it waits until the slider is let go.
-        bool tune_pending;
+        // The tuning sliders: a cage_tune knob, its label, and the absolute range it may reach.
+        static readonly (string field, string label, float min, float max)[] tune_knobs = {
+            ("arm_tilt", "arm ring tilt (deg)", -30f, 45f),
+            ("arm_length", "arm ring length", 0.05f, 0.3f),
+            ("body_front", "body front reach", -0.05f, 0.1f),
+            ("body_back", "body back reach", -0.05f, 0.1f),
+            ("head_tilt", "head ring tilt (deg)", 0f, 45f),
+            ("head_offset", "head ring offset", -0.02f, 0.06f),
+            ("head_front", "head ring front reach", -0.05f, 0.1f),
+            ("head_back", "head ring back reach", -0.05f, 0.1f),
+            ("head_gate_slack", "head gate slack", 0f, 0.1f),
+            ("arm_gate_slack", "arm gate slack", -0.05f, 0.05f),
+            ("spine_gate_slack", "spine gate slack", -0.035f, 0.01f),
+            ("knee_gate_slack", "knee gate slack", -0.035f, 0.01f),
+            ("armpit_gate_slack", "armpit gate slack", -0.05f, 0.01f),
+            ("neck_gate_slack", "neck gate slack", -0.08f, 0.01f),
+            ("crown_front", "crown ring front reach", -0.05f, 0.1f),
+            ("crown_back", "crown ring back reach", -0.05f, 0.1f),
+            ("crotch_drop", "crotch drop", 0f, 0.3f),
+            ("hip_out", "hip out (ratio)", 0f, 2f),
+            ("knee_out", "knee ring outer reach", -0.1f, 0.1f),
+            ("knee_back", "knee ring back reach", -0.05f, 0.2f),
+            ("ankle_tilt", "ankle ring tilt (deg)", 0f, 80f),
+            ("ankle_front", "ankle ring front reach", -0.1f, 0.1f),
+            ("ankle_back", "ankle ring back reach", -0.05f, 0.1f),
+            ("elbow_hi", "elbow ring hi reach", -0.05f, 0.1f),
+            ("wrist_thumb", "wrist ring thumb-side reach", -0.05f, 0.05f),
+            ("wrist_pinky", "wrist ring pinky-side reach", -0.05f, 0.05f),
+            ("thumb_out", "palm thumb out reach", -0.05f, 0.05f),
+            ("pinky_out", "palm pinky out reach", -0.05f, 0.05f),
+            ("finger_out", "finger ring side reach", -0.005f, 0.01f),
+            ("valley_reach", "palm valley reach", 0f, 0.03f),
+        };
 
         // A tag hides once its group is smaller than this on screen, so the body rings read at
         // full-figure zoom and the finger rings only once the view is on a hand.
@@ -582,84 +624,46 @@ public class mapping_tester : MonoBehaviour{
                 EditorGUILayout.LabelField("cage", EditorStyles.boldLabel);
 
                 // One change check over every tuning slider: whichever moved, the whole tune rebakes.
+                // Each slider moves a knob's delta off cage_tune.baked -- zero is the baked value -- over
+                // the knob's documented absolute range, and the label prints where that lands.
                 EditorGUI.BeginChangeCheck();
-                var arm_tilt = EditorGUILayout.Slider("arm ring tilt (deg)", mapping.tune.arm_tilt, -30f, 45f);
-                var arm_length = EditorGUILayout.Slider("arm ring length", mapping.tune.arm_length, 0.05f, 0.3f);
-                var body_front = EditorGUILayout.Slider("body front reach", mapping.tune.body_front, -0.05f, 0.1f);
-                var body_back = EditorGUILayout.Slider("body back reach", mapping.tune.body_back, -0.05f, 0.1f);
-                var head_tilt = EditorGUILayout.Slider("head ring tilt (deg)", mapping.tune.head_tilt, 0f, 45f);
-                var head_offset = EditorGUILayout.Slider("head ring offset", mapping.tune.head_offset, -0.02f, 0.06f);
-                var head_front = EditorGUILayout.Slider("head ring front reach", mapping.tune.head_front, -0.05f, 0.1f);
-                var head_back = EditorGUILayout.Slider("head ring back reach", mapping.tune.head_back, -0.05f, 0.1f);
-                var head_gate_slack = EditorGUILayout.Slider("head gate slack", mapping.tune.head_gate_slack, 0f, 0.1f);
-                var arm_gate_slack = EditorGUILayout.Slider("arm gate slack", mapping.tune.arm_gate_slack, -0.05f, 0.05f);
-                var spine_gate_slack = EditorGUILayout.Slider("spine gate slack", mapping.tune.spine_gate_slack, -0.035f, 0.01f);
-                var knee_gate_slack = EditorGUILayout.Slider("knee gate slack", mapping.tune.knee_gate_slack, -0.035f, 0.01f);
-                var armpit_gate_slack = EditorGUILayout.Slider("armpit gate slack", mapping.tune.armpit_gate_slack, -0.05f, 0.01f);
-                var neck_gate_slack = EditorGUILayout.Slider("neck gate slack", mapping.tune.neck_gate_slack, -0.08f, 0.01f);
-                var crown_front = EditorGUILayout.Slider("crown ring front reach", mapping.tune.crown_front, -0.05f, 0.1f);
-                var crown_back = EditorGUILayout.Slider("crown ring back reach", mapping.tune.crown_back, -0.05f, 0.1f);
-                var crotch_drop = EditorGUILayout.Slider("crotch drop", mapping.tune.crotch_drop, 0f, 0.3f);
-                var hip_out = EditorGUILayout.Slider("hip out (ratio)", mapping.tune.hip_out, 0f, 2f);
-                var knee_out = EditorGUILayout.Slider("knee ring outer reach", mapping.tune.knee_out, -0.1f, 0.1f);
-                var knee_back = EditorGUILayout.Slider("knee ring back reach", mapping.tune.knee_back, -0.05f, 0.2f);
-                var ankle_tilt = EditorGUILayout.Slider("ankle ring tilt (deg)", mapping.tune.ankle_tilt, 0f, 80f);
-                var ankle_front = EditorGUILayout.Slider("ankle ring front reach", mapping.tune.ankle_front, -0.1f, 0.1f);
-                var ankle_back = EditorGUILayout.Slider("ankle ring back reach", mapping.tune.ankle_back, -0.05f, 0.1f);
-                var elbow_hi = EditorGUILayout.Slider("elbow ring hi reach", mapping.tune.elbow_hi, -0.05f, 0.1f);
-                var wrist_thumb = EditorGUILayout.Slider("wrist ring thumb-side reach", mapping.tune.wrist_thumb, -0.05f, 0.05f);
-                var wrist_pinky = EditorGUILayout.Slider("wrist ring pinky-side reach", mapping.tune.wrist_pinky, -0.05f, 0.05f);
-                var thumb_out = EditorGUILayout.Slider("palm thumb out reach", mapping.tune.thumb_out, -0.05f, 0.05f);
-                var pinky_out = EditorGUILayout.Slider("palm pinky out reach", mapping.tune.pinky_out, -0.05f, 0.05f);
-                var finger_out = EditorGUILayout.Slider("finger ring side reach", mapping.tune.finger_out, -0.005f, 0.01f);
-                var valley_reach = EditorGUILayout.Slider("palm valley reach", mapping.tune.valley_reach, 0f, 0.03f);
+                var deltas = tune_knobs.Select(k => {
+                    var f = typeof(cage_tune).GetField(k.field);
+                    var at = (float)f.GetValue(cage_tune.baked);
+                    var delta = (float)f.GetValue(mapping.tune_delta);
+                    return (f, to: EditorGUILayout.Slider($"{k.label} = {at + delta:0.####}", delta, k.min - at, k.max - at));
+                }).ToArray();
                 if(EditorGUI.EndChangeCheck()){
                     Undo.RecordObject(mapping, "tune cage");
-                    mapping.tune.arm_tilt = arm_tilt;
-                    mapping.tune.arm_length = arm_length;
-                    mapping.tune.body_front = body_front;
-                    mapping.tune.body_back = body_back;
-                    mapping.tune.head_tilt = head_tilt;
-                    mapping.tune.head_offset = head_offset;
-                    mapping.tune.head_front = head_front;
-                    mapping.tune.head_back = head_back;
-                    mapping.tune.head_gate_slack = head_gate_slack;
-                    mapping.tune.arm_gate_slack = arm_gate_slack;
-                    mapping.tune.spine_gate_slack = spine_gate_slack;
-                    mapping.tune.knee_gate_slack = knee_gate_slack;
-                    mapping.tune.armpit_gate_slack = armpit_gate_slack;
-                    mapping.tune.neck_gate_slack = neck_gate_slack;
-                    mapping.tune.crown_front = crown_front;
-                    mapping.tune.crown_back = crown_back;
-                    mapping.tune.crotch_drop = crotch_drop;
-                    mapping.tune.hip_out = hip_out;
-                    mapping.tune.knee_out = knee_out;
-                    mapping.tune.knee_back = knee_back;
-                    mapping.tune.ankle_tilt = ankle_tilt;
-                    mapping.tune.ankle_front = ankle_front;
-                    mapping.tune.ankle_back = ankle_back;
-                    mapping.tune.elbow_hi = elbow_hi;
-                    mapping.tune.wrist_thumb = wrist_thumb;
-                    mapping.tune.wrist_pinky = wrist_pinky;
-                    mapping.tune.thumb_out = thumb_out;
-                    mapping.tune.pinky_out = pinky_out;
-                    mapping.tune.finger_out = finger_out;
-                    mapping.tune.valley_reach = valley_reach;
-                    mapping.constants = cage.bake(mapping.source, mapping.tune);
+                    foreach(var (f, to) in deltas){
+                        f.SetValue(mapping.tune_delta, to);
+                    }
+                    // Rebake and re-place only -- milliseconds, so the wire follows the drag. The
+                    // bind is seconds and is its own button below; until it is pressed the mesh
+                    // stays on the old cage and the warning says so.
+                    mapping.constants = cage.bake(mapping.source, cage_tune.tuned(mapping.tune_delta));
                     mapping.update_cage();
-                    tune_pending = true;
-                }
-                // Typing into the slider's field holds no control, so wait for that to end too.
-                if(tune_pending && GUIUtility.hotControl == 0 && !EditorGUIUtility.editingTextField){
-                    tune_pending = false;
-                    mapping.bind();
-                    mapping.update_body();
                 }
 
-                if(GUILayout.Button("rebuild cage")){
-                    mapping.constants = cage.bake(mapping.source, mapping.tune);
+                if(GUILayout.Button("reset tune")){
+                    Undo.RecordObject(mapping, "reset tune");
+                    mapping.tune_delta = new cage_tune();
+                    mapping.constants = cage.bake(mapping.source, cage_tune.tuned(mapping.tune_delta));
                     mapping.update_cage();
-                    mapping.bind();
+                }
+                if(GUILayout.Button("rebuild cage")){
+                    mapping.constants = cage.bake(mapping.source, cage_tune.tuned(mapping.tune_delta));
+                    mapping.update_cage();
+                }
+
+                if(mapping.constants != null){
+                    if(mapping.bind_stale){
+                        EditorGUILayout.HelpBox("mesh is not bound to the current cage -- press bind mesh", MessageType.Warning);
+                    }
+                    if(GUILayout.Button("bind mesh")){
+                        mapping.bind();
+                        mapping.update_body();
+                    }
                 }
 
                 if(mapping.constants != null && GUILayout.Button("check containment")){
