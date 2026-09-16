@@ -41,6 +41,10 @@ public class mapping_tester : MonoBehaviour{
     [HideInInspector] public cage_constants constants;
     public MeshFilter cage_view;
 
+    // The target's skeleton drawn as cubes and lines; enabling it shows it. A scene object of its
+    // own rather than a child of the rig root, which import replaces.
+    public skeleton_view skeleton;
+
     // Scene view: draw the whole triangulation instead of only the edges cage.md declares. What the
     // tuning sliders move is exactly a ring's edges and a post's ends, so the recipe's own frame is
     // the view to tune against; the panels' quad diagonals bury it. Turn this on to read the shell
@@ -566,6 +570,14 @@ public class mapping_tester : MonoBehaviour{
             DrawDefaultInspector();
 
             var mapping = target as mapping_tester;
+
+            // The view's own enabled flag, surfaced here so the whole control surface is one inspector.
+            EditorGUI.BeginChangeCheck();
+            var show = EditorGUILayout.Toggle("show skeleton", mapping.skeleton.enabled);
+            if(EditorGUI.EndChangeCheck()){
+                Undo.RecordObject(mapping.skeleton, "toggle skeleton");
+                mapping.skeleton.enabled = show;
+            }
 
             if(GUILayout.Button("import source")){
                 mapping.import();

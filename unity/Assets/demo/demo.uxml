@@ -24,6 +24,7 @@
             </ui:Foldout>
             <ui:Foldout name="view_section" text="View" class="section">
                 <ui:Toggle name="rest_body" label="rest body" value="true"/>
+                <ui:Toggle name="skeleton" label="skeleton"/>
             </ui:Foldout>
         </ui:ScrollView>
         <ui:Label text="drag: orbit · right drag: pan · wheel: zoom" class="hint"/>

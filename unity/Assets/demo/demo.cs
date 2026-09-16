@@ -144,6 +144,9 @@ public class demo : MonoBehaviour{
         motions.RegisterValueChangedCallback(e => motion = Enum.Parse<demo_motion>(e.newValue));
 
         root.Q<Toggle>("rest_body").RegisterValueChangedCallback(e => rest_body.enabled = e.newValue);
+        var skeleton = root.Q<Toggle>("skeleton");
+        skeleton.SetValueWithoutNotify(mapping.skeleton.enabled);
+        skeleton.RegisterValueChangedCallback(e => mapping.skeleton.enabled = e.newValue);
     }
 
     // Rest first: update_body reads both skeletons standing at rest -- the bind space off the
