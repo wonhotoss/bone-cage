@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mvc 2d — cage demo</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh;
+    display: flex; align-items: center; justify-content: center; gap: 1.5rem; flex-wrap: wrap;
+    padding: 1rem;
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #0f1115; color: #e6e8eb;
+  }
+  @media (prefers-color-scheme: light) { body { background: #f6f7f9; color: #1a1c20; } }
+  canvas { touch-action: none; border: 1px solid rgba(128,128,128,.28); border-radius: 10px; }
+  aside { display: grid; gap: .5rem; align-content: start; }
+  h1 { font-size: 1rem; margin: 0; }
+  p { margin: 0; opacity: .7; font-size: .85rem; max-width: 22rem; }
+  table { border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: .85rem; }
+  th, td { padding: .2rem .55rem; text-align: right; border-bottom: 1px solid rgba(128,128,128,.2); }
+  th { opacity: .7; font-weight: 600; }
+  th:first-child, td:first-child { text-align: left; }
+  tbody tr { cursor: default; }
+  tbody tr:hover, tbody tr.hot { background: rgba(76,141,255,.18); }
+  td.neg { color: #ff7a7a; }
+  button {
+    justify-self: start; padding: .35rem .8rem; border-radius: 6px; cursor: pointer;
+    border: 1px solid rgba(128,128,128,.4); background: rgba(128,128,128,.1); color: inherit; font: inherit;
+  }
+  button:hover { border-color: #4c8dff; }
+</style>
+</head>
+<body>
+<canvas id="view" width="560" height="560"></canvas>
+<aside>
+  <h1>Mean value coordinates, 2D</h1>
+  <p>Drag a cage vertex (c0–c5). Every mesh vertex (v0–v7) is rebuilt as Σ wᵢ·cᵢ with the weights
+     bound once in the rest pose, shown below. Dashed outline is the rest cage.</p>
+  <table>
+    <thead><tr id="head"><th>bind</th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <button id="reset">reset cage</button>
+</aside>
+<script>
+'use strict';
+
+const W = 560, H = 560, cx = W / 2, cy = H / 2;
+
+// Rest pose: a regular octagon inside a regular hexagon cage. Vertex order is counter-clockwise
+// on screen for both (y points down, so the angles run negative).
+const rest_mesh = Array.from({length: 8}, (_, i) => {
+  const a = -Math.PI / 8 - i * Math.PI / 4;
+  return [cx + 120 * Math.cos(a), cy + 120 * Math.sin(a)];
+});
+const rest_cage = Array.from({length: 6}, (_, i) => {
+  const a = -i * Math.PI / 3;
+  return [cx + 220 * Math.cos(a), cy + 220 * Math.sin(a)];
+});
+let cage = rest_cage.map(v => v.slice());
+
+// Floater 2003. tan(a/2) = (|d0||d1| - d0·d1) / (d0 × d1); the global sign follows the cage
+// winding and cancels in the normalization.
+function mvc(p, poly){
+  const n = poly.length;
+  const d = poly.map(v => [v[0] - p[0], v[1] - p[1]]);
+  const r = d.map(v => Math.hypot(v[0], v[1]));
+  const t = d.map((v, i) => {
+    const u = d[(i + 1) % n];
+    return (r[i] * r[(i + 1) % n] - (v[0] * u[0] + v[1] * u[1])) / (v[0] * u[1] - v[1] * u[0]);
+  });
+  const w = r.map((ri, i) => (t[(i + n - 1) % n] + t[i]) / ri);
+  const sum = w.reduce((a, b) => a + b, 0);
+  return w.map(x => x / sum);
+}
+
+const bind = rest_mesh.map(p => mvc(p, rest_cage));
+const mesh = () => bind.map(w => cage.reduce((acc, c, i) => [acc[0] + w[i] * c[0], acc[1] + w[i] * c[1]], [0, 0]));
+
+// Bind table: one row per mesh vertex, one column per cage vertex.
+const head = document.getElementById('head');
+cage.forEach((_, i) => head.insertAdjacentHTML('beforeend', `<th>c${i}</th>`));
+const rows = document.getElementById('rows');
+bind.forEach((w, i) => {
+  const cells = w.map(x => `<td class="${x < 0 ? 'neg' : ''}">${x.toFixed(3)}</td>`).join('');
+  rows.insertAdjacentHTML('beforeend', `<tr data-v="${i}"><td>v${i}</td>${cells}</tr>`);
+});
+let hot = -1;
+rows.addEventListener('mouseover', e => { hot = +e.target.closest('tr').dataset.v; draw(); });
+rows.addEventListener('mouseleave', () => { hot = -1; draw(); });
+
+const canvas = document.getElementById('view');
+const ctx = canvas.getContext('2d');
+const dpr = window.devicePixelRatio || 1;
+canvas.width = W * dpr; canvas.height = H * dpr;
+canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+ctx.scale(dpr, dpr);
+
+function label(text, p, color){
+  ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.fillStyle = color;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+  ctx.fillText(text, p[0], p[1] - 9);
+}
+
+function draw(){
+  ctx.clearRect(0, 0, W, H);
+  const m = mesh();
+
+  ctx.setLineDash([5, 5]);
+  ctx.strokeStyle = 'rgba(128,128,128,.45)'; ctx.lineWidth = 1;
+  ctx.beginPath(); rest_cage.forEach((v, i) => i ? ctx.lineTo(...v) : ctx.moveTo(...v)); ctx.closePath(); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Mesh: fan triangulation from v0 so the deformation is visible inside as well.
+  ctx.beginPath(); m.forEach((v, i) => i ? ctx.lineTo(...v) : ctx.moveTo(...v)); ctx.closePath();
+  ctx.fillStyle = 'rgba(76,141,255,.18)'; ctx.fill();
+  ctx.strokeStyle = 'rgba(76,141,255,.35)'; ctx.lineWidth = 1;
+  for (let i = 2; i < m.length - 1; i++) { ctx.beginPath(); ctx.moveTo(...m[0]); ctx.lineTo(...m[i]); ctx.stroke(); }
+  ctx.strokeStyle = '#4c8dff'; ctx.lineWidth = 2;
+  ctx.beginPath(); m.forEach((v, i) => i ? ctx.lineTo(...v) : ctx.moveTo(...v)); ctx.closePath(); ctx.stroke();
+  m.forEach((v, i) => {
+    ctx.fillStyle = i === hot ? '#ffffff' : '#4c8dff';
+    ctx.beginPath(); ctx.arc(v[0], v[1], i === hot ? 6 : 4, 0, Math.PI * 2); ctx.fill();
+    label('v' + i, v, '#4c8dff');
+  });
+
+  ctx.strokeStyle = '#ffb454'; ctx.lineWidth = 2;
+  ctx.beginPath(); cage.forEach((v, i) => i ? ctx.lineTo(...v) : ctx.moveTo(...v)); ctx.closePath(); ctx.stroke();
+  cage.forEach((v, i) => {
+    ctx.fillStyle = i === drag ? '#ffffff' : '#ffb454';
+    ctx.beginPath(); ctx.arc(v[0], v[1], 7, 0, Math.PI * 2); ctx.fill();
+    label('c' + i, v, '#ffb454');
+  });
+}
+
+// Dragging: the nearest cage vertex within a few pixels follows the pointer until release.
+let drag = -1;
+const local = e => { const b = canvas.getBoundingClientRect(); return [e.clientX - b.left, e.clientY - b.top]; };
+canvas.addEventListener('pointerdown', e => {
+  const p = local(e);
+  const dist = cage.map(c => Math.hypot(c[0] - p[0], c[1] - p[1]));
+  const i = dist.indexOf(Math.min(...dist));
+  if (dist[i] < 14) { drag = i; canvas.setPointerCapture(e.pointerId); draw(); }
+});
+canvas.addEventListener('pointermove', e => {
+  if (drag >= 0) { cage[drag] = local(e); draw(); }
+});
+canvas.addEventListener('pointerup', () => { drag = -1; draw(); });
+document.getElementById('reset').addEventListener('click', () => { cage = rest_cage.map(v => v.slice()); draw(); });
+
+draw();
+</script>
+</body>
+</html>
