@@ -469,6 +469,8 @@ public class mapping_tester : MonoBehaviour{
         static readonly (string field, string label, float min, float max)[] tune_knobs = {
             ("arm_tilt", "arm ring tilt (deg)", -30f, 45f),
             ("arm_length", "arm ring length", 0.05f, 0.3f),
+            ("arm_follow_hi", "arm ring top follows clavicle", 0f, 1f),
+            ("arm_follow_lo", "arm ring armpit follows clavicle", 0f, 1f),
             ("body_front", "body front reach", -0.05f, 0.1f),
             ("body_back", "body back reach", -0.05f, 0.1f),
             ("head_tilt", "head ring tilt (deg)", 0f, 45f),

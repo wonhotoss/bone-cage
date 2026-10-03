@@ -7,7 +7,7 @@ using System.IO;
 // mapping_tester.import(TextAsset). The constants travel as text because JsonUtility is Unity's and
 // the sweep has only CoreModule, so each side parses them with what it has.
 public static class cage_bake{
-    const int version = 1;
+    const int version = 2;  // bumped whenever the constants' shape changes, so a stale file stops at read
 
     public static void write(Stream to, string constants_json, cage_bind b){
         using(var f = new BinaryWriter(to)){
